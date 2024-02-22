@@ -23,6 +23,7 @@ import xiangshan.backend.decode.ImmUnion
 import xiangshan.backend.execute.fu.FUWithRedirect
 import xiangshan.{FuOpType, RedirectLevel, XSModule}
 import xs.utils.{ParallelMux, SignExt}
+import xiangshan.ExceptionNO._
 
 class JumpDataModule(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
@@ -36,12 +37,15 @@ class JumpDataModule(implicit p: Parameters) extends XSModule {
   })
   val (src1, pc, immMin, func, isRVC) = (io.src, io.pc, io.immMin, io.func, io.isRVC)
 
-  val isJalr = JumpOpType.jumpOpIsJalr(func)
-  val isAuipc = JumpOpType.jumpOpIsAuipc(func)
+  val isJalr = JumpOpType.jumpOpisJalr(func)
+  val isAuipc = JumpOpType.jumpOpisAuipc(func)
+  // Dasicscall.J needs a special case, while Dasicscall.JR is included in Jalr
+  val isDasicscallJ = JumpOpType.jumpOpIsDasicscallJ(func)
   val offset = SignExt(ParallelMux(Seq(
     isJalr -> ImmUnion.I.toImm32(immMin),
     isAuipc -> ImmUnion.U.toImm32(immMin),
-    !(isJalr || isAuipc) -> ImmUnion.J.toImm32(immMin)
+    isDasicscallJ -> ImmUnion.DIJ.toImm32(immMin),
+    !(isJalr || isAuipc || isDasicscallJ) -> ImmUnion.J.toImm32(immMin)
   )), XLEN)
 
   val snpc = Mux(isRVC, pc + 2.U, pc + 4.U)

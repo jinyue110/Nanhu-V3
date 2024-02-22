@@ -20,6 +20,7 @@ import chisel3._
 import chisel3.util._
 import xiangshan._
 import xiangshan.frontend.icache._
+import xiangshan.backend.fu.DasicsCheckFault
 import utils._
 import xs.utils._
 import scala.{Tuple2 => &}
@@ -34,6 +35,9 @@ class FetchRequestBundle(implicit p: Parameters) extends XSBundle with HasICache
   //slow path
   val ftqIdx          = new FtqPtr
   val ftqOffset       = ValidUndirectioned(UInt(log2Ceil(PredictWidth).W))
+
+  // last branch for dasics check
+  val lastBranch: ValidUndirectioned[UInt] = ValidUndirectioned(UInt(VAddrBits.W))
 
   def crossCacheline =  startAddr(blockOffBits - 1) === 1.U
 
@@ -121,6 +125,9 @@ class FetchToIBuffer(implicit p: Parameters) extends XSBundle {
   val crossPageIPFFix = Vec(PredictWidth, Bool())
   val triggered    = Vec(PredictWidth, new TriggerCf)
   val mmioFetch = Bool()
+  val dasicsUntrusted = Vec(PredictWidth, Bool())
+  val dasicsBrFault: UInt = DasicsCheckFault()  // last branch to this instr block is illegal
+  val lastBranch: UInt = UInt(VAddrBits.W)
 }
 
 // class BitWiseUInt(val width: Int, val init: UInt) extends Module {

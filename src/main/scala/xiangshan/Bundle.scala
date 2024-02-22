@@ -117,6 +117,10 @@ class CtrlFlow(implicit p: Parameters) extends XSBundle {
   val ssid = UInt(SSIDWidth.W)
   val ftqPtr = new FtqPtr
   val ftqOffset = UInt(log2Up(PredictWidth).W)
+  // needs to be checked by dasics
+  val dasicsUntrusted = Bool()
+  // info of branch fault by last branch
+  val lastBranch = ValidUndirectioned(UInt(VAddrBits.W))
 
   //vector
 
@@ -229,6 +233,21 @@ class MicroOp(implicit p: Parameters) extends CfCtrl {
   val vtypeRegIdx = UInt(log2Ceil(VIVtypeRegsNum).W)
   val segIdx = UInt(log2Ceil(VLEN).W)
   val elmIdx = UInt(3.W)
+
+  val dasicsUntrusted = Bool()
+
+  def needRfRPort(index: Int, isFp: Boolean, ignoreState: Boolean = true) : Bool = {
+    val stateReady = srcState(index) === SrcState.rdy || ignoreState.B
+    val readReg = if (isFp) {
+      ctrl.srcType(index) === SrcType.fp
+    } else {
+      ctrl.srcType(index) === SrcType.reg && ctrl.lsrc(index) =/= 0.U
+    }
+    readReg && stateReady
+  }
+  def srcIsReady: Vec[Bool] = {
+    VecInit(ctrl.srcType.zip(srcState).map{ case (t, s) => SrcType.isPcOrImm(t) || s === SrcState.rdy })
+  }
 
   def clearExceptions(
     exceptionBits: Seq[Int] = Seq(),
@@ -428,10 +447,15 @@ class TlbCsrBundle(implicit p: Parameters) extends XSBundle {
     val imode = UInt(2.W)
     val dmode = UInt(2.W)
   }
+  val mpk = new Bundle {
+    val pkr = UInt(XLEN.W)
+    val enable = Bool()
+  }
 
   override def toPrintable: Printable = {
     p"Satp mode:0x${Hexadecimal(satp.mode)} asid:0x${Hexadecimal(satp.asid)} ppn:0x${Hexadecimal(satp.ppn)} " +
-      p"Priv mxr:${priv.mxr} sum:${priv.sum} imode:${priv.imode} dmode:${priv.dmode}"
+      p"Priv mxr:${priv.mxr} sum:${priv.sum} imode:${priv.imode} dmode:${priv.dmode} " +
+      p"MPK enable:${mpk.enable} pkr:0x${Hexadecimal(mpk.pkr)}"
   }
 }
 
@@ -515,6 +539,8 @@ class CustomCSRCtrlIO(implicit p: Parameters) extends XSBundle {
 
   // distribute csr write signal
   val distribute_csr = new DistributedCSRIO()
+  // csr mode register
+  val mode = Output(UInt(4.W))
   // TODO: move it to a new bundle, since single step is not a custom control signal
   val singlestep = Output(Bool())
   val frontend_trigger = new FrontendTdataDistributeIO()

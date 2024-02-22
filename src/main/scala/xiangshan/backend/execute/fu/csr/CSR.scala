@@ -116,8 +116,7 @@ class CSRFileIO(implicit p: Parameters) extends XSBundle {
 
 class CSR(implicit p: Parameters) extends FUWithRedirect
   with HasCSRConst with PMPMethod with PMAMethod
-  with HasTriggerConst  with SdtrigExt with DebugCSR with HasPerfLogging {
-
+  with HasTriggerConst  with SdtrigExt with DebugCSR with HasPerfLogging with DasicsMethod {
   val csrio = IO(new CSRFileIO)
 
   val uopIn = io.in.bits.uop
@@ -127,11 +126,12 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   cfOut := cfIn
   val flushPipe = Wire(Bool())
 
-  val (valid, src1, src2, func) = (
+  val (valid, src1, src2, func, isUntrusted) = (
     io.in.valid,
     io.in.bits.src(0),
     io.in.bits.uop.ctrl.imm,
-    io.in.bits.uop.ctrl.fuOpType
+    io.in.bits.uop.ctrl.fuOpType,
+    io.in.bits.uop.dasicsUntrusted
   )
 
   val csrr_sc_ignoreW = (uopIn.ctrl.fuOpType === CSROpType.set || uopIn.ctrl.fuOpType === CSROpType.clr) && (uopIn.psrc(0) === 0.U)
@@ -268,6 +268,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   var extList = List('a', 's', 'i', 'u')
   if (HasMExtension) { extList = extList :+ 'm' }
   if (HasCExtension) { extList = extList :+ 'c' }
+  if (HasNExtension) { extList = extList :+ 'n' }
   if (HasFPU) { extList = extList ++ List('f', 'd') }
   if (hasVector) { extList = extList :+ 'v' }
   val misaInitVal = getMisaMxl(2) | extList.foldLeft(0L)((sum, i) => sum | getMisaExt(i)) //"h8000000000141105".U
@@ -304,7 +305,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   // | hpp  | 00 |
   // | spp  | 0 |
   // | pie  | 0000 | pie.h is used as UBE
-  // | ie   | 0000 | uie hardlinked to 0, as N ext is not implemented
+  // | ie   | 0000 |
 
   val mstatusStruct = mstatus.asTypeOf(new MstatusStruct)
   def mstatusUpdateSideEffect(mstatus: UInt): UInt = {
@@ -345,6 +346,34 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val pmpMapping = pmp_gen_mapping(pmp_init, NumPMP, PmpcfgBase, PmpaddrBase, pmp)
   val pmaMapping = pmp_gen_mapping(pma_init, NumPMA, PmacfgBase, PmaaddrBase, pma)
 
+  // DASICS Mapping
+  val dasicsMainCfg: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val dasicsSMainCfgMask: UInt = "h3".U(XLEN.W)
+  val dasicsUMainCfgMask: UInt = "h2".U(XLEN.W)
+  val dasicsSMainBoundLo, dasicsSMainBoundHi = RegInit(UInt(XLEN.W), 0.U)
+  val dasicsUMainBoundLo, dasicsUMainBoundHi = RegInit(UInt(XLEN.W), 0.U)
+
+  val dasicsMainCall: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val dasicsReturnPc: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val dasicsAZoneReturnPc: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val dasics_mem: Vec[DasicsEntry] = Wire(Vec(NumDasicsMemBounds, new DasicsEntry()))  // just used for method parameter
+  val dasics_jump: Vec[DasicsJumpEntry] = Wire(Vec(NumDasicsJumpBounds, new DasicsJumpEntry()))  
+  val dasicsMapping: Map[Int, (UInt, UInt, UInt => UInt, UInt, UInt => UInt)] = dasicsGenMemMapping(
+    mem_init = dasicsMemInit, memCfgBase = DasicsLibCfgBase, memBoundBase = DasicsLibBoundBase, memEntries = dasics_mem
+  ) ++ dasicsGenJumpMapping(
+    jump_init = dasicsMemInit, jumpCfgBase = DasicsJmpCfgBase, jumpBoundBase = DasicsJmpBoundBase, jumpEntries = dasics_jump
+  ) ++ Map(
+    MaskedRegMap(DasicsSMainCfg, dasicsMainCfg, dasicsSMainCfgMask),
+    MaskedRegMap(DasicsSMainBoundLo, dasicsSMainBoundLo),
+    MaskedRegMap(DasicsSMainBoundHi, dasicsSMainBoundHi),
+    MaskedRegMap(DasicsUMainCfg, dasicsMainCfg, wmask = dasicsUMainCfgMask, rmask = dasicsUMainCfgMask),
+    MaskedRegMap(DasicsUMainBoundLo, dasicsUMainBoundLo),
+    MaskedRegMap(DasicsUMainBoundHi, dasicsUMainBoundHi),
+    MaskedRegMap(DasicsMainCall, dasicsMainCall),
+    MaskedRegMap(DasicsReturnPc, dasicsReturnPc),
+    MaskedRegMap(DasicsActiveZoneReturnPC, dasicsAZoneReturnPc)
+  )
+
   // Superviser-Level CSRs
 
   // val sstatus = RegInit(UInt(XLEN.W), "h00000000".U)
@@ -360,6 +389,12 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   // stvec: {BASE (WARL), MODE (WARL)} where mode is 0 or 1
   val stvecMask = ~(0x2.U(XLEN.W))
   val stvec = RegInit(UInt(XLEN.W), 0.U)
+
+  val sedeleg: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val sideleg: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val sedelegWMask: UInt = medeleg
+  val sidelegWMask: UInt = mideleg
+
   // val sie = RegInit(0.U(XLEN.W))
   val sieMask = "h222".U & mideleg
   val sipMask = "h222".U & mideleg
@@ -377,6 +412,11 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val stval = Reg(UInt(XLEN.W))
   val sscratch = RegInit(UInt(XLEN.W), 0.U)
   val scounteren = RegInit(UInt(32.W), 0.U)
+
+  // Supervisor-level MPK Registers
+  val spkrs = RegInit(UInt(XLEN.W), 0.U)
+  val spkctl = RegInit(UInt(XLEN.W), 0.U)
+  val spkctlMask = "h3".U(XLEN.W)  // 0: pke, 1: pks
 
   // sbpctl
   // Bits 0-7: {LOOP, RAS, SC, TAGE, BIM, BTB, uBTB}
@@ -483,7 +523,18 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   csrio.tlb := tlbBundle
 
   // User-Level CSRs
+  val ustatusWmask: UInt = "h11".U(XLEN.W) // UPIE and UIE
+  val ustatusRmask: UInt = ustatusWmask
+  val uieMask: UInt = "h111".U & sideleg
+  val uipMask: UInt = "h111".U & sideleg
+  val uipWMask: UInt = "h1".U(XLEN.W) // usip is writable in u-mode
+  val uepcMask = (~0x1.U(XLEN.W)).asUInt
   val uepc = Reg(UInt(XLEN.W))
+  val ucause = RegInit(UInt(XLEN.W), 0.U)
+  val uscratch = RegInit(UInt(XLEN.W), 0.U)
+  val utvecMask = (~0x2.U(XLEN.W)).asUInt
+  val utvec = RegInit(UInt(XLEN.W), 0.U)
+  val utval = RegInit(UInt(XLEN.W), 0.U)
 
   // fcsr
   class FcsrStruct extends Bundle {
@@ -631,6 +682,9 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   csrio.vcsr.vtype.vtypeRead.readEn := valid && !isVset && (addr===Vtype.asUInt)
   csrio.vcsr.vtype.vlRead.readEn    := valid && !isVset && (addr===Vl.asUInt)
 
+  // User-Level MPK Register
+  val upkru = RegInit(UInt(XLEN.W), 0.U)
+
   // Hart Priviledge Mode
   val priviledgeMode = RegInit(UInt(2.W), ModeM)
 
@@ -690,8 +744,8 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
 
     //--- Supervisor Trap Setup ---
     MaskedRegMap(Sstatus, mstatus, sstatusWmask, mstatusUpdateSideEffect, sstatusRmask),
-    // MaskedRegMap(Sedeleg, Sedeleg),
-    // MaskedRegMap(Sideleg, Sideleg),
+    MaskedRegMap(Sedeleg, sedeleg, sedelegWMask),
+    MaskedRegMap(Sideleg, sideleg, sidelegWMask),
     MaskedRegMap(Sie, mie, sieMask, MaskedRegMap.NoSideEffect, sieMask),
     MaskedRegMap(Stvec, stvec, stvecMask, MaskedRegMap.NoSideEffect, stvecMask),
     MaskedRegMap(Scounteren, scounteren),
@@ -725,7 +779,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     //--- Machine Trap Setup ---
     MaskedRegMap(Mstatus, mstatus, mstatusWMask, mstatusUpdateSideEffect, mstatusMask),
     MaskedRegMap(Misa, misa, 0.U, MaskedRegMap.Unwritable), // now whole misa is unchangeable
-    MaskedRegMap(Medeleg, medeleg, "hb3ff".U(XLEN.W)),
+    MaskedRegMap(Medeleg, medeleg, "hfff00b3ff".U(XLEN.W)),
     MaskedRegMap(Mideleg, mideleg, "h222".U(XLEN.W)),
     MaskedRegMap(Mie, mie, "haaa".U(XLEN.W)),
     MaskedRegMap(Mtvec, mtvec, mtvecMask, MaskedRegMap.NoSideEffect, mtvecMask),
@@ -786,13 +840,37 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     )
   }}
 
+  private val userMapping = Map(
+    //--- User Trap Setup ---
+    MaskedRegMap(Ustatus, mstatus, ustatusWmask, mstatusUpdateSideEffect, ustatusRmask),
+    MaskedRegMap(Uie, mie, uieMask, MaskedRegMap.Unwritable, uieMask),
+    MaskedRegMap(Utvec, utvec, utvecMask, MaskedRegMap.NoSideEffect, utvecMask),
+
+    // User Trap Handling
+    MaskedRegMap(Uscratch, uscratch),
+    MaskedRegMap(Uepc, uepc, uepcMask, MaskedRegMap.NoSideEffect, uepcMask),
+    MaskedRegMap(Ucause, ucause),
+    MaskedRegMap(Utval, utval),
+    MaskedRegMap(Uip, mip.asUInt, 0.U(XLEN.W), MaskedRegMap.Unwritable, uipMask)
+  )
+
+  val mpkMapping = Map(
+    MaskedRegMap(Upkru, upkru),
+    MaskedRegMap(Spkrs, spkrs),
+    MaskedRegMap(Spkctl, spkctl, spkctlMask)
+  )
+
   val mapping = basicPrivMapping ++
                 perfCntMapping ++
                 pmpMapping ++
                 pmaMapping ++
+                mpkMapping ++
                 (if (HasFPU) fcsrMapping else Nil) ++
                 (if (HasCustomCSRCacheOp) cacheopMapping else Nil) ++ 
-                (if(hasVector) vcsrMapping else Nil)
+                (if(hasVector) vcsrMapping else Nil) ++
+                (if (HasCustomCSRCacheOp) cacheopMapping else Nil) ++
+                (if (HasNExtension) userMapping else Nil) ++
+                (if (HasDasics) dasicsMapping else Nil)
 
   println("XiangShan CSR Lists")
 
@@ -807,6 +885,13 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     (addr >= Cycle.U) && (addr <= Hpmcounter31.U) ||
     addr === Mip.U
   csrio.isPerfCnt := addrInPerfCnt && valid && func =/= CSROpType.jmp && !isVset
+
+  val addrInDasics =  (addr >= DasicsUMainCfg.U) && (addr <= DasicsUMainBoundHi.U) || 
+    (addr >= DasicsSMainCfg.U) && (addr <= DasicsSMainBoundHi.U) || 
+    (addr >= DasicsMainCall.U) && (addr <= DasicsActiveZoneReturnPC.U) ||
+    (addr >= DasicsLibBoundBase.U) && (addr < (DasicsLibBoundBase + NumDasicsMemBounds * 2).U) || 
+    (addr >= DasicsJmpBoundBase.U) && (addr <= DasicsJmpCfgBase.U) || 
+    addr === DasicsLibCfgBase.U
 
   // satp wen check
   val satpLegalMode = (wdata.asTypeOf(new SatpStruct).mode===0.U) || (wdata.asTypeOf(new SatpStruct).mode===8.U)
@@ -825,7 +910,8 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val perfcntPermitted = perfcntPermissionCheck(addr, priviledgeMode, mcounteren, scounteren)
   val vcsrPermitted = vcsrAccessPermissionCheck(addr, wen, mstatusStruct.vs)
   val fcsrPermitted = fcsrAccessPermissionCheck(addr, wen, mstatusStruct.fs)
-  val permitted = Mux(addrInPerfCnt && addr =/= Mip.U, perfcntPermitted, modePermitted) && accessPermitted && vcsrPermitted && fcsrPermitted
+  val dasicsPermitted = !(CSROpType.needAccess(func) && addrInDasics && isUntrusted)
+  val permitted = Mux(addrInPerfCnt && addr =/= Mip.U, perfcntPermitted, modePermitted) && accessPermitted && vcsrPermitted && fcsrPermitted && dasicsPermitted
   vtypeNoException := vcsrPermitted
 
   MaskedRegMap.generate(mapping, addr, rdata, wen && permitted, wdata)
@@ -841,10 +927,13 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   csrio.customCtrl.distribute_csr.w.bits.data := wdata
   csrio.customCtrl.distribute_csr.w.bits.addr := addr
 
-  // Fix Mip/Sip write
+  csrio.customCtrl.mode := priviledgeMode
+
+  // Fix Mip/Sip/Uip write
   val fixMapping = Map(
     MaskedRegMap(Mip, mipReg.asUInt, mipFixMask),
-    MaskedRegMap(Sip, mipReg.asUInt, sipWMask, MaskedRegMap.NoSideEffect, sipMask)
+    MaskedRegMap(Sip, mipReg.asUInt, sipWMask, MaskedRegMap.NoSideEffect, sipMask),
+    MaskedRegMap(Uip, mipReg.asUInt, uipWMask, MaskedRegMap.NoSideEffect, uipMask)
   )
   val rdataFix = Wire(UInt(XLEN.W))
   val wdataFix = LookupTree(func, List(
@@ -919,7 +1008,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val isUret   = addr === privUret   && func === CSROpType.jmp
   val isDret   = addr === privDret   && func === CSROpType.jmp
   val isWFI    = func === CSROpType.wfi
-
+  
   XSDebug(wen, "csr write: pc %x addr %x rdata %x wdata %x func %x\n", cfIn.pc, addr, rdata, wdata, func)
   XSDebug(wen, "pc %x mstatus %x mideleg %x medeleg %x mode %x\n", cfIn.pc, mstatus, mideleg , medeleg, priviledgeMode)
 
@@ -945,6 +1034,8 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   tlbBundle.priv.sum   := mstatusStruct.sum.asBool
   tlbBundle.priv.imode := priviledgeMode
   tlbBundle.priv.dmode := Mux(debugMode && dcsr.asTypeOf(new DcsrStruct).mprven, ModeM, Mux(mstatusStruct.mprv.asBool, mstatusStruct.mpp, priviledgeMode))
+  tlbBundle.mpk.enable := Mux(priviledgeMode === ModeU, spkctl(0), Mux(priviledgeMode === ModeS, spkctl(1), false.B))
+  tlbBundle.mpk.pkr    := Mux(priviledgeMode === ModeU, upkru, spkrs)
 
   // Branch control
   val retTarget = WireInit(0.U)
@@ -1034,8 +1125,12 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val csrExceptionVec = WireInit(cfIn.exceptionVec)
   csrExceptionVec(breakPoint) := io.in.valid && isEbreak
   csrExceptionVec(ecallM) := priviledgeMode === ModeM && io.in.valid && isEcall
-  csrExceptionVec(ecallS) := priviledgeMode === ModeS && io.in.valid && isEcall
-  csrExceptionVec(ecallU) := priviledgeMode === ModeU && io.in.valid && isEcall
+  csrExceptionVec(ecallS) := priviledgeMode === ModeS && io.in.valid && isEcall && !isUntrusted
+  csrExceptionVec(ecallU) := priviledgeMode === ModeU && io.in.valid && isEcall && !isUntrusted
+
+  csrExceptionVec(dasicsUEcallAccessFault) := priviledgeMode === ModeU && io.in.valid && isEcall && isUntrusted
+  csrExceptionVec(dasicsSEcallAccessFault) := priviledgeMode === ModeS && io.in.valid && isEcall && isUntrusted
+
   // Trigger an illegal instr exception when:
   // * unimplemented csr is being read/written
   // * csr access is illegal
@@ -1047,16 +1142,29 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   /**
     * Exception and Intr
     */
-  val ideleg =  (mideleg & mip.asUInt)
-  def priviledgedEnableDetect(x: Bool): Bool = Mux(x, ((priviledgeMode === ModeS) && mstatusStruct.ie.s) || (priviledgeMode < ModeS),
-    ((priviledgeMode === ModeM) && mstatusStruct.ie.m) || (priviledgeMode < ModeM))
+  private val ideleg = (mideleg & mip.asUInt).asBools.zip(sideleg.asBools)
+
+  /**
+    * @param mdeleg mideleg & mip for this interrupt
+    * @param sdeleg sideleg for this interrupt
+    * @return the correct global enable bit (xIE)
+    */
+  def priviledgedEnableDetect(mdeleg: Bool, sdeleg: Bool): Bool = Mux(
+    mdeleg,
+    Mux(sdeleg,
+      (priviledgeMode === ModeU) && mstatusStruct.ie.u,
+      ((priviledgeMode === ModeS) && mstatusStruct.ie.s) || (priviledgeMode < ModeS)),
+    ((priviledgeMode === ModeM) && mstatusStruct.ie.m) || (priviledgeMode < ModeM)
+  )
 
   val debugIntr = csrio.externalInterrupt.debug & debugIntrEnable
   XSDebug(debugIntr, "Debug Mode: debug interrupt is asserted and valid!")
   // send interrupt information to ROB
   val intrVecEnable = Wire(Vec(12, Bool()))
   val disableInterrupt = debugMode || (dcsrData.step && !dcsrData.stepie)
-  intrVecEnable.zip(ideleg.asBools).map{case(x,y) => x := priviledgedEnableDetect(y) && !disableInterrupt}
+  intrVecEnable.zip(ideleg).foreach { case(x, (mdeleg, sdeleg)) =>
+    x := priviledgedEnableDetect(mdeleg, sdeleg) && !disableInterrupt
+  }
   val intrVec = Cat(debugIntr && !debugMode, (mie(11,0) & mip.asUInt & intrVecEnable.asUInt))
   val mintrVec = intrVec & (~mideleg(12, 0))
   val mintrNO = IntPriority.foldRight(0.U)((i: Int, sum: UInt) => Mux(mintrVec(i), i.U, sum))
@@ -1104,7 +1212,20 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val hasInstrAccessFault   = hasException && exceptionVecFromRob(instrAccessFault)
   val hasLoadAccessFault    = hasException && exceptionVecFromRob(loadAccessFault)
   val hasStoreAccessFault   = hasException && exceptionVecFromRob(storeAccessFault)
+  val hasPKULoadPageFault   = hasException && exceptionVecFromRob(pkuLoadPageFault)
+  val hasPKUStorePageFault  = hasException && exceptionVecFromRob(pkuStorePageFault)
+  val hasPKSLoadPageFault   = hasException && exceptionVecFromRob(pksLoadPageFault)
+  val hasPKSStorePageFault  = hasException && exceptionVecFromRob(pksStorePageFault)
   val hasBreakPoint         = hasException && exceptionVecFromRob(breakPoint)
+  val hasDasicsULoadFault   = hasException && exceptionVecFromRob(dasicsULoadAccessFault)
+  val hasDasicsSLoadFault   = hasException && exceptionVecFromRob(dasicsSLoadAccessFault)
+  val hasDasicsUStoreFault  = hasException && exceptionVecFromRob(dasicsUStoreAccessFault)
+  val hasDasicsSStoreFault  = hasException && exceptionVecFromRob(dasicsSStoreAccessFault)
+  val hasDasicsUFetchFault  = hasException && exceptionVecFromRob(dasicsUIntrAccessFault)
+  val hasDasicsSFetchFault  = hasException && exceptionVecFromRob(dasicsSIntrAccessFault)
+  // interrupt and dasics fetch both occurs
+  val hasDasicsFetchIntr    =
+    hasIntr && (exceptionVecFromRob(dasicsUIntrAccessFault) || exceptionVecFromRob(dasicsSIntrAccessFault))
   val hasSingleStep         = hasException && csrio.exception.bits.uop.ctrl.singleStep
   val hasTriggerFire        = hasException && csrio.exception.bits.uop.cf.trigger.canFire
   val triggerFrontendHitVec = csrio.exception.bits.uop.cf.trigger.frontendHit
@@ -1121,8 +1242,16 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     p"backend hit vec ${Binary(csrio.exception.bits.uop.cf.trigger.backendHit.asUInt)}\n")
 
   val hasExceptionVec = csrio.exception.bits.uop.cf.exceptionVec
+  val regularExceptionVec = hasExceptionVec.take(16)
+  val dasicsExceptionVec = ExceptionNO.selectDasics(hasExceptionVec)
+  val mpkExceptionVec = ExceptionNO.selectMpk(hasExceptionVec)
   val regularExceptionNO = ExceptionNO.priorities.foldRight(0.U)((i: Int, sum: UInt) => Mux(hasExceptionVec(i), i.U, sum))
-  val exceptionNO = Mux(hasSingleStep || hasTriggerFire, 3.U, regularExceptionNO)
+  val dasicsExceptionNo = ExceptionNO.dasicsSet.foldRight(0.U)((i: Int, sum: UInt) => Mux(dasicsExceptionVec(i), (i + dasicsExcOffset).U, sum))
+  val mpkExceptionNo = ExceptionNO.mpkSet.foldRight(0.U)((i: Int, sum: UInt) => Mux(mpkExceptionVec(i), (i + mpkExcOffset).U, sum))
+  
+  val exceptionNO = Mux(hasSingleStep || hasTriggerFire, 3.U,
+    Mux(regularExceptionVec.reduce(_||_), regularExceptionNO,
+      Mux(dasicsExceptionVec.reduce(_||_), dasicsExceptionNo, mpkExceptionNo)))
   val causeNO = (hasIntr << (XLEN-1)).asUInt | Mux(hasIntr, intrNOReg, exceptionNO)
 
   val hasExceptionIntr = csrio.exception.valid
@@ -1147,7 +1276,6 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
 
   // mtval write logic
   // Due to timing reasons of memExceptionVAddr, we delay the write of mtval and stval
-
   val mmuEnable = priviledgeMode < ModeM && tlbBundle.satp.mode =/= 0.U
   // val memExceptionAddr = Mux(mmuEnable, SignExt(csrio.memExceptionVAddr, XLEN), ZeroExt(csrio.memExceptionVAddr, XLEN))
   // val exceptionNextAddr = Mux(mmuEnable, SignExt(csrio.exception.bits.uop.cf.pc + 2.U, XLEN), ZeroExt(csrio.exception.bits.uop.cf.pc + 2.U, XLEN))
@@ -1157,14 +1285,28 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     hasInstrPageFault,
     hasLoadPageFault,
     hasStorePageFault,
+    hasPKULoadPageFault,
+    hasPKUStorePageFault,
+    hasPKSLoadPageFault,
+    hasPKSStorePageFault,
     hasInstrAccessFault,
     hasLoadAccessFault,
     hasStoreAccessFault,
     hasLoadAddrMisalign,
-    hasStoreAddrMisalign
+    hasStoreAddrMisalign,
+    hasDasicsSLoadFault,
+    hasDasicsULoadFault,
+    hasDasicsSStoreFault,
+    hasDasicsUStoreFault,
+    hasDasicsUFetchFault,
+    hasDasicsSFetchFault
   )).asUInt.orR
   when (RegNext(RegNext(updateTval))) {
-      val tval = Mux(
+    val tval = Mux(
+      RegNext(RegNext((hasDasicsUFetchFault || hasDasicsSFetchFault) && csrio.exception.bits.uop.cf.lastBranch.valid)),
+      // for dasics fetch faults, epc is the last branch, tval is this instr
+      RegNext(RegNext(csrio.exception.bits.uop.cf.pc)),
+      Mux(
         RegNext(RegNext(hasInstrPageFault || hasInstrAccessFault)),
         RegNext(RegNext(Mux(
           csrio.exception.bits.uop.cf.crossPageIPFFix,
@@ -1172,21 +1314,26 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
           SignExt(csrio.exception.bits.uop.cf.pc, XLEN)
         ))),
         memExceptionAddr
+      )
     )
     when (RegNext(priviledgeMode === ModeM)) {
       mtval := tval
-    }.otherwise {
+    }.elsewhen (RegNext(priviledgeMode === ModeS)) {
       stval := tval
+    }.otherwise {
+      utval := tval
     }
   }
 
   val debugTrapTarget = Mux(!isEbreak && debugMode, 0x38020808.U, 0x38020800.U) // 0x808 is when an exception occurs in debug mode prog buf exec
-  val deleg = Mux(hasIntr, mideleg , medeleg)
+  private val delegVecM = Mux(hasIntr, mideleg , medeleg)
+  private val delegVecS = Mux(hasIntr, sideleg, sedeleg)
   // val delegS = ((deleg & (1 << (causeNO & 0xf))) != 0) && (priviledgeMode < ModeM);
-  val delegS = deleg(causeNO(3,0)) && (priviledgeMode < ModeM)
+  private val delegS = delegVecM(causeNO(7,0)) && (priviledgeMode < ModeM)
+  private val delegU = delegVecS(causeNO(7,0)) && (priviledgeMode < ModeS)
   val clearTval = !updateTval || hasIntr
 
-  private val xtvec = Mux(delegS, stvec, mtvec)
+  private val xtvec = Mux(delegS, Mux(delegU, utvec, stvec), mtvec)
   private val xtvecBase = xtvec(VAddrBits - 1, 2)
   // When MODE=Vectored, all synchronous exceptions into M/S mode
   // cause the pc to be set to the address in the BASE field, whereas
@@ -1222,6 +1369,9 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     val mstatusNew = WireInit(mstatus.asTypeOf(new MstatusStruct))
     val dcsrNew = WireInit(dcsr.asTypeOf(new DcsrStruct))
     val debugModeNew = WireInit(debugMode)
+    val lastBranchInfo = WireInit(csrio.exception.bits.uop.cf.lastBranch)
+    val hasDasicsBrFault = (hasDasicsUFetchFault || hasDasicsSFetchFault) && lastBranchInfo.valid
+    val hasDasicsBrIntr = hasDasicsFetchIntr && lastBranchInfo.valid
     when (hasDebugTrap && !debugMode) {
       import DcsrStruct._
       debugModeNew := true.B
@@ -1243,9 +1393,25 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
       debugIntrEnable := false.B
     }.elsewhen (debugMode) {
       //do nothing
-    }.elsewhen (delegS) {
+    }.elsewhen (delegS && delegU) {
+      ucause := causeNO
+      // for branch faults, epc is the last branch; if interrupt occurs at the same time, also rewind
+      uepc := Mux(
+        hasDasicsBrFault || hasDasicsBrIntr,
+        lastBranchInfo.bits,
+        Mux(hasInstrPageFault || hasInstrAccessFault, iexceptionPC, dexceptionPC)
+      )
+      mstatusNew.pie.u := mstatusOld.ie.u
+      mstatusNew.ie.u := false.B
+      priviledgeMode := ModeU
+      when (clearTval) { utval := 0.U }
+    }.elsewhen (delegS && !delegU) {
       scause := causeNO
-      sepc := Mux(hasInstrPageFault || hasInstrAccessFault, iexceptionPC, dexceptionPC)
+      sepc := Mux(
+        hasDasicsBrFault || hasDasicsBrIntr,
+        lastBranchInfo.bits,
+        Mux(hasInstrPageFault || hasInstrAccessFault, iexceptionPC, dexceptionPC)
+      )
       mstatusNew.spp := priviledgeMode
       mstatusNew.pie.s := mstatusOld.ie.s
       mstatusNew.ie.s := false.B
@@ -1253,7 +1419,11 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
       when (clearTval) { stval := 0.U }
     }.otherwise {
       mcause := causeNO
-      mepc := Mux(hasInstrPageFault || hasInstrAccessFault, iexceptionPC, dexceptionPC)
+      mepc := Mux(
+        hasDasicsBrFault || hasDasicsBrIntr,
+        lastBranchInfo.bits,
+        Mux(hasInstrPageFault || hasInstrAccessFault, iexceptionPC, dexceptionPC)
+      )
       mstatusNew.mpp := priviledgeMode
       mstatusNew.pie.m := mstatusOld.ie.m
       mstatusNew.ie.m := false.B
@@ -1305,6 +1475,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   when (RegNext(RegNext(reset.asBool) && !reset.asBool)) {
     mepc := Cat(mepc(XLEN - 1, 1), 0.U(1.W))
     sepc := Cat(sepc(XLEN - 1, 1), 0.U(1.W))
+    uepc := Cat(uepc(XLEN - 1, 1), 0.U(1.W))
   }
 
   def readWithScala(addr: Int): UInt = mapping(addr)._1
@@ -1325,26 +1496,47 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
 
   // Always instantiate basic difftest modules.
   if (env.AlwaysBasicDiff || env.EnableDifftest) {
-    val difftestCSR = DifftestModule(new DiffCSRState)
-    difftestCSR.coreid := csrio.hartId
-    difftestCSR.priviledgeMode := priviledgeMode
-    difftestCSR.mstatus := mstatus
-    difftestCSR.sstatus := mstatus & sstatusRmask
-    difftestCSR.mepc := mepc
-    difftestCSR.sepc := sepc
-    difftestCSR.mtval:= mtval
-    difftestCSR.stval:= stval
-    difftestCSR.mtvec := mtvec
-    difftestCSR.stvec := stvec
-    difftestCSR.mcause := mcause
-    difftestCSR.scause := scause
-    difftestCSR.satp := satp
-    difftestCSR.mip := mipReg
-    difftestCSR.mie := mie
-    difftestCSR.mscratch := mscratch
-    difftestCSR.sscratch := sscratch
-    difftestCSR.mideleg := mideleg
-    difftestCSR.medeleg := medeleg
+    val difftest = Module(new DifftestCSRState)
+    difftest.io.clock := clock
+    difftest.io.coreid := csrio.hartId
+    difftest.io.priviledgeMode := priviledgeMode
+    difftest.io.mstatus := mstatus
+    difftest.io.sstatus := mstatus & sstatusRmask
+    difftest.io.ustatus := mstatus & ustatusRmask
+    difftest.io.mepc := mepc
+    difftest.io.sepc := sepc
+    difftest.io.uepc := uepc
+    difftest.io.mtval:= mtval
+    difftest.io.stval:= stval
+    difftest.io.utval := utval
+    difftest.io.mtvec := mtvec
+    difftest.io.stvec := stvec
+    difftest.io.utvec := utvec
+    difftest.io.mcause := mcause
+    difftest.io.scause := scause
+    difftest.io.ucause := ucause
+    difftest.io.satp := satp
+    difftest.io.mip := mipReg
+    difftest.io.mie := mie
+    difftest.io.mscratch := mscratch
+    difftest.io.sscratch := sscratch
+    difftest.io.uscratch := uscratch
+    difftest.io.mideleg := mideleg
+    difftest.io.sedeleg := sedeleg
+    difftest.io.medeleg := medeleg
+    difftest.io.sideleg := sideleg
+    difftest.io.dsmcfg := dasicsMainCfg & dasicsSMainCfgMask
+    difftest.io.dsmbound0 := dasicsSMainBoundLo
+    difftest.io.dsmbound1 := dasicsSMainBoundHi
+    difftest.io.dumcfg := dasicsMainCfg & dasicsUMainCfgMask
+    difftest.io.dumbound0 := dasicsUMainBoundLo
+    difftest.io.dumbound1 := dasicsUMainBoundHi
+    difftest.io.dmaincall := dasicsMainCall
+    difftest.io.dretpc := dasicsReturnPc
+    difftest.io.dretpcfz := dasicsAZoneReturnPc
+    difftest.io.upkru := upkru
+    difftest.io.spkrs := spkrs
+    difftest.io.spkctl := spkctl
   }
 
   if(env.AlwaysBasicDiff || env.EnableDifftest) {

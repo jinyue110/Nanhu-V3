@@ -5,6 +5,18 @@ import chisel3.util._
 
 trait HasCSRConst {
 
+  // User Trap Setup
+  val Ustatus       = 0x000
+  val Uie           = 0x004
+  val Utvec         = 0x005
+
+  // User Trap Handling
+  val Uscratch      = 0x040
+  val Uepc          = 0x041
+  val Ucause        = 0x042
+  val Utval         = 0x043
+  val Uip           = 0x044
+
   // Unprivileged Floating-Point CSRs
   val Fflags        = 0x001
   val Frm           = 0x002
@@ -53,6 +65,20 @@ trait HasCSRConst {
   val Hpmcounter30  = 0xC1E
   val Hpmcounter31  = 0xC1F
 
+  // User DASICS registers
+  val DasicsLibCfgBase = 0x880
+  val DasicsLibBoundBase = 0x890
+
+  val DasicsMainCall  = 0x8b0
+  val DasicsReturnPc  = 0x8b1
+  val DasicsActiveZoneReturnPC = 0x8b2
+
+  val DasicsJmpCfgBase = 0x8c8
+  val DasicsJmpBoundBase = 0x8c0
+
+  // User-Level MPK Register
+  val Upkru         = 0x800
+
   // Supervisor Trap Setup
   val Sstatus       = 0x100
   val Sedeleg       = 0x102
@@ -82,6 +108,15 @@ trait HasCSRConst {
 
   val Sdsid         = 0x9C0
   val Sfetchctl     = 0x9E0
+
+  // Supervisor MPK Registers
+  val Spkctl        = 0x9D0
+  val Spkrs         = 0x9D1
+
+  // Supervisor DASICS Settings (for User protection)
+  val DasicsUMainCfg = 0x9E0
+  val DasicsUMainBoundLo = 0x9E2
+  val DasicsUMainBoundHi = 0x9E3
 
   // Machine Information Registers
   val Mvendorid     = 0xF11
@@ -195,6 +230,11 @@ trait HasCSRConst {
   val Dpc           = 0x7B1
   val Dscratch0     = 0x7B2
   val Dscratch1     = 0x7B3
+
+  // Machine DASICS Settings (for Supervisor protection)
+  val DasicsSMainCfg = 0xBC0
+  val DasicsSMainBoundLo = 0xBC2
+  val DasicsSMainBoundHi = 0xBC3
 
   def privEcall  = 0x000.U
   def privEbreak = 0x001.U

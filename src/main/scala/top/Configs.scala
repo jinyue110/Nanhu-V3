@@ -69,6 +69,7 @@ class MinimalConfig(n: Int = 1) extends Config(
   new BaseConfig(n).alter((site, here, up) => {
     case XSTileKey => up(XSTileKey).map(
       _.copy(
+        HasNExtension = true,
         DecodeWidth = 2,
         RenameWidth = 2,
         FetchWidth = 4,
