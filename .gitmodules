@@ -1,10 +1,11 @@
 [submodule "rocket-chip"]
 	path = rocket-chip
 	url = https://github.com/DASICS-ICT/rocket-chip.git
+	branch = fdi-nh3
 [submodule "difftest"]
 	path = difftest
 	url = https://github.com/DASICS-ICT/difftest.git
-	branch = xs-dasics-v1.0-release
+	branch = fdi-nh3
 [submodule "ready-to-run"]
 	path = ready-to-run
 	url = https://github.com/Siudya/ready-to-run
