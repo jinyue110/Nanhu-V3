@@ -1398,38 +1398,36 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     difftestException.exceptionInst := csrio.exception.bits.uop.cf.instr
   }
 
-  // Always instantiate basic difftest modules.
   if (env.AlwaysBasicDiff || env.EnableDifftest) {
-    val difftest = Module(new DifftestCSRState)
-    difftest.io.clock := clock
-    difftest.io.coreid := csrio.hartId
-    difftest.io.priviledgeMode := priviledgeMode
-    difftest.io.mstatus := mstatus
-    difftest.io.sstatus := mstatus & sstatusRmask
-    difftest.io.mepc := mepc
-    difftest.io.sepc := sepc
-    difftest.io.mtval:= mtval
-    difftest.io.stval:= stval
-    difftest.io.mtvec := mtvec
-    difftest.io.stvec := stvec
-    difftest.io.mcause := mcause
-    difftest.io.scause := scause
-    difftest.io.satp := satp
-    difftest.io.mip := mipReg
-    difftest.io.mie := mie
-    difftest.io.mscratch := mscratch
-    difftest.io.sscratch := sscratch
-    difftest.io.mideleg := mideleg
-    difftest.io.medeleg := medeleg
-    difftest.io.dsmcfg := dasicsMainCfg & dasicsSMainCfgMask
-    difftest.io.dsmbound0 := dasicsSMainBoundLo
-    difftest.io.dsmbound1 := dasicsSMainBoundHi
-    difftest.io.dumcfg := dasicsMainCfg & dasicsUMainCfgMask
-    difftest.io.dumbound0 := dasicsUMainBoundLo
-    difftest.io.dumbound1 := dasicsUMainBoundHi
-    difftest.io.dmaincall := dasicsMainCall
-    difftest.io.dretpc := dasicsReturnPc
-    difftest.io.dretpcfz := dasicsAZoneReturnPc
+    val difftestCSR = DifftestModule(new DiffCSRState)
+    difftestCSR.coreid := csrio.hartId
+    difftestCSR.priviledgeMode := priviledgeMode
+    difftestCSR.mstatus := mstatus
+    difftestCSR.sstatus := mstatus & sstatusRmask
+    difftestCSR.mepc := mepc
+    difftestCSR.sepc := sepc
+    difftestCSR.mtval := mtval
+    difftestCSR.stval := stval
+    difftestCSR.mtvec := mtvec
+    difftestCSR.stvec := stvec
+    difftestCSR.mcause := mcause
+    difftestCSR.scause := scause
+    difftestCSR.satp := satp
+    difftestCSR.mip := mipReg
+    difftestCSR.mie := mie
+    difftestCSR.mscratch := mscratch
+    difftestCSR.sscratch := sscratch
+    difftestCSR.mideleg := mideleg
+    difftestCSR.medeleg := medeleg
+    difftestCSR.dsmcfg := dasicsMainCfg & dasicsSMainCfgMask
+    difftestCSR.dsmbound0 := dasicsSMainBoundLo
+    difftestCSR.dsmbound1 := dasicsSMainBoundHi
+    difftestCSR.dumcfg := dasicsMainCfg & dasicsUMainCfgMask
+    difftestCSR.dumbound0 := dasicsUMainBoundLo
+    difftestCSR.dumbound1 := dasicsUMainBoundHi
+    difftestCSR.dmaincall := dasicsMainCall
+    difftestCSR.dretpc := dasicsReturnPc
+    difftestCSR.dretpcfz := dasicsAZoneReturnPc
   }
 
   if(env.AlwaysBasicDiff || env.EnableDifftest) {
