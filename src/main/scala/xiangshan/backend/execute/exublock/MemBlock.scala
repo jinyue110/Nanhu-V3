@@ -27,6 +27,7 @@ import utils._
 import xiangshan._
 import xiangshan.backend.execute.exu.{ExuConfig, ExuInputNode, ExuOutputMultiSinkNode, ExuOutputNode, ExuType}
 import xiangshan.backend.execute.exucx.ExuComplexIssueNode
+import xiangshan.backend.execute.fu._
 import xiangshan.backend.execute.fu.csr.CSRConst.ModeS
 import xiangshan.backend.execute.fu.{FuConfigs, FunctionUnit, PMP, PMPChecker, PMPCheckerv2}
 import xiangshan.backend.execute.fu.csr.{PFEvent, SdtrigExt}
@@ -496,22 +497,21 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     dtlb_st.foreach(_.ptw.resp.valid := ptw_resp_v && Cat(ptw_resp_next.vector.drop(ld_tlb_ports)).orR)
   }
 
-  // dasics memory access check
-  val dasics = Module(new MemDasics())
-  dasics.io.distribute_csr <> csrCtrl.distribute_csr
+  // FDI memory access check
+  val FDI = Module(new MemFDI())
+  FDI.io.distribute_csr <> csrCtrl.distribute_csr
 
-  val dasics_checkers = VecInit(Seq.fill(exuParameters.LduCnt + exuParameters.StuCnt)(
-    Module(new DasicsMemChecker()).io
-  )) //TODO: general Dasics check port config
+  val FDI_checkers = VecInit(Seq.fill(exuParameters.LduCnt + exuParameters.StuCnt)(
+    Module(new FDIMemChecker()).io
+  )) //TODO: general FDI check port config
 
-  val memDasicsReq  = storeUnits.map(_.io.dasicsReq) ++ loadUnits.map(_.io.dasicsReq)
-  val memDasicsResp = storeUnits.map(_.io.dasicsResp) ++ loadUnits.map(_.io.dasicsResp)
+  val memFDIReq  = storeUnits.map(_.io.FDIReq) ++ loadUnits.map(_.io.FDIReq)
+  val memFDIResp = storeUnits.map(_.io.FDIResp) ++ loadUnits.map(_.io.FDIResp)
 
-  for( (dchecker,index) <- dasics_checkers.zipWithIndex){
-     dchecker.mode := csrCtrl.mode
-     dchecker.resource := dasics.io.entries
-     dchecker.req := memDasicsReq(index)
-     memDasicsResp(index) := dchecker.resp
+  for( (dchecker,index) <- FDI_checkers.zipWithIndex){
+     dchecker.resource := FDI.io.entries
+     dchecker.req := memFDIReq(index)
+     memFDIResp(index) := dchecker.resp
   }
 
   // pmp

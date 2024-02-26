@@ -705,20 +705,16 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
 
   val copied_ifu_plus1_to_send = VecInit(Seq.fill(copyNum)(RegNext(entry_fetch_status(ifuPtrPlus1.value) === f_to_send) || RegNext(last_cycle_bpu_in && bpu_in_bypass_ptr === (ifuPtrPlus1))))
   val copied_ifu_ptr_to_send   = VecInit(Seq.fill(copyNum)(RegNext(entry_fetch_status(ifuPtr.value) === f_to_send) || RegNext(last_cycle_bpu_in && bpu_in_bypass_ptr === ifuPtr)))
-
-  // record last branch for dasics check
-  val lastBranchReg: UInt = Reg(UInt(VAddrBits.W))
-  val lastBranchActiveReg: Bool = RegInit(false.B)
-
+  
   for(i <- 0 until copyNum){
     when(copied_last_cycle_bpu_in(i) && copied_bpu_in_bypass_ptr(i) === copied_ifu_ptr(i)){
       toICachePcBundle(i) := copied_bpu_in_bypass_buf(i)
-      toICacheEntryToSend(i)   := true.B
+      toICacheEntryToSend(i)   := true.B 
     }.elsewhen(copied_last_cycle_to_ifu_fire(i)){
       toICachePcBundle(i) := pc_mem_ifu_plus1_rdata(i)
       toICacheEntryToSend(i)   := copied_ifu_plus1_to_send(i)
     }.otherwise{
-      toICachePcBundle(i) := pc_mem_ifu_ptr_rdata(i)
+      toICachePcBundle(i) := pc_mem_ifu_ptr_rdata(i) 
       toICacheEntryToSend(i)   := copied_ifu_ptr_to_send(i)
     }
   }
@@ -754,25 +750,9 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   io.toIfu.req.bits.nextStartAddr := entry_next_addr
   io.toIfu.req.bits.ftqOffset := entry_ftq_offset
   io.toIfu.req.bits.fromFtqPcBundle(toIfuPcBundle)
-  io.toIfu.req.bits.lastBranch.valid := lastBranchActiveReg
-  io.toIfu.req.bits.lastBranch.bits := lastBranchReg
-
-  def getBranchPc(startAddr: UInt, ftqOffset: UInt): UInt = {
-    val pcOffset = if (HasCExtension) (ftqOffset << 1.U).asUInt else (ftqOffset << 2.U).asUInt
-    startAddr + pcOffset
-  }
-  // process last branch regs
-  when (io.toIfu.req.fire) {
-    when (entry_ftq_offset.valid) { // there's a predicted branch
-      lastBranchActiveReg := true.B
-      lastBranchReg := getBranchPc(io.toIfu.req.bits.startAddr, entry_ftq_offset.bits)
-    }.elsewhen (lastBranchActiveReg) {  // lastBranch is picked up, disable it
-      lastBranchActiveReg := false.B
-    }
-  }
 
   io.toICache.req.valid := entry_is_to_send && ifuPtr =/= bpuPtr
-  io.toICache.req.bits.readValid.zipWithIndex.map{case(copy, i) => copy := toICacheEntryToSend(i) && copied_ifu_ptr(i) =/= copied_bpu_ptr(i)}
+  io.toICache.req.bits.readValid.zipWithIndex.map{case(copy, i) => copy := toICacheEntryToSend(i) && copied_ifu_ptr(i) =/= copied_bpu_ptr(i)} 
   io.toICache.req.bits.pcMemRead.zipWithIndex.map{case(copy,i) => copy.fromFtqPcBundle(toICachePcBundle(i))}
   // io.toICache.req.bits.bypassSelect := last_cycle_bpu_in && bpu_in_bypass_ptr === ifuPtr
   // io.toICache.req.bits.bpuBypassWrite.zipWithIndex.map{case(bypassWrtie, i) =>
@@ -783,7 +763,7 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   // TODO: remove this
   XSError(io.toIfu.req.valid && diff_entry_next_addr =/= entry_next_addr,
           p"\nifu_req_target wrong! ifuPtr: ${ifuPtr}, entry_next_addr: ${Hexadecimal(entry_next_addr)} diff_entry_next_addr: ${Hexadecimal(diff_entry_next_addr)}\n")
-
+  
   // when fall through is smaller in value than start address, there must be a false hit
   when (toIfuPcBundle.fallThruError && entry_hit_status(ifuPtr.value) === h_hit) {
     when (io.toIfu.req.fire &&
@@ -985,7 +965,7 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
       mispredict_vec(r_idx)(r_offset) := r_mispred
     }
   }
-
+  
   when(backendRedirectReg.valid) {
     updateCfiInfo(backendRedirectReg)
   }.elsewhen (ifuRedirectToBpu.valid) {
@@ -1018,12 +998,6 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
           s := c_invalid
         }
       })
-    }
-    lastBranchActiveReg := false.B  // prevent erroneous carry over
-    // special case: pick up correct branch information
-    when (r.cfiUpdate.isMisPred && r.cfiUpdate.taken) {
-      lastBranchActiveReg := true.B
-      lastBranchReg := r.cfiUpdate.pc
     }
   }
 
