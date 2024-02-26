@@ -10,8 +10,8 @@ import xiangshan._
 import xiangshan.backend.fu.util.HasCSRConst
 
 trait DasicsConst {
-  val NumDasicsMemBounds  = 16  // For load/store
-  val NumDasicsJumpBounds = 4   // For jal/jalr
+  val NumDasicsMemBounds  = 4  // For load/store
+  val NumDasicsJumpBounds = 1   // For jal/jalr
   // 8 bytes of granularity
   val DasicsGrain         = 8
   val DasicsGrainBit      = log2Ceil(DasicsGrain)   
@@ -128,14 +128,14 @@ class DasicsJumpEntry(implicit p: Parameters) extends XSBundle with DasicsConst 
 trait DasicsMethod extends DasicsConst { this: HasXSParameter =>
   def dasicsMemInit(): (Vec[UInt], Vec[UInt]) = {
     val dasicsMemCfgPerCSR = XLEN / DasicsMemConfig.getWidth
-    val cfgs = WireInit(0.U.asTypeOf(Vec(NumDasicsMemBounds / dasicsMemCfgPerCSR, UInt(XLEN.W))))
+    val cfgs = WireInit(0.U.asTypeOf(Vec(if (NumDasicsMemBounds < dasicsMemCfgPerCSR) 1 else NumDasicsMemBounds / dasicsMemCfgPerCSR, UInt(XLEN.W))))
     val bounds = WireInit(0.U.asTypeOf(Vec(NumDasicsMemBounds * 2, UInt(XLEN.W))))
     (cfgs, bounds)
   }
 
   def dasicsJumpInit(): (Vec[UInt], Vec[UInt]) = {
     val dasicsJumpCfgPerCSR = 4 
-    val cfgs = WireInit(0.U.asTypeOf(Vec(NumDasicsJumpBounds / dasicsJumpCfgPerCSR, UInt(XLEN.W))))
+    val cfgs = WireInit(0.U.asTypeOf(Vec(if (NumDasicsJumpBounds < dasicsJumpCfgPerCSR) 1 else NumDasicsJumpBounds / dasicsJumpCfgPerCSR, UInt(XLEN.W))))
     val bounds = WireInit(0.U.asTypeOf(Vec(NumDasicsJumpBounds * 2, UInt(XLEN.W))))
     (cfgs, bounds)
   }
