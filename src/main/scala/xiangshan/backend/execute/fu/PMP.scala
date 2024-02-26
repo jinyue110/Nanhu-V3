@@ -308,7 +308,7 @@ trait PMPMethod extends PMPConst {
     /** to fit MaskedRegMap's write, declare cfgs as Merged CSRs and split them into each pmp */
     val cfgMerged = RegInit(init_value._1) //(Vec(num / pmpCfgPerCSR, UInt(PMXLEN.W))) // RegInit(VecInit(Seq.fill(num / pmpCfgPerCSR)(0.U(PMXLEN.W))))
     val cfgs = WireInit(cfgMerged).asTypeOf(Vec(num, new PMPConfig()))
-    val cfgMask = Cat(cfgs.map(cfg => WireInit(Fill(8, !cfg.locked))).reverse).asTypeOf(Vec(2, UInt(64.W)))
+    val cfgMask = Cat(cfgs.map(cfg => WireInit(Fill(8, !cfg.locked))).reverse).asTypeOf(Vec(num / 8, UInt(64.W)))
     dontTouch(cfgMask)
     val addr = RegInit(init_value._2) // (Vec(num, UInt((PMPAddrBits-PMPOffBits).W)))
     val mask = RegInit(init_value._3) // (Vec(num, UInt(PMPAddrBits.W)))
