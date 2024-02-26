@@ -22,6 +22,7 @@ import chisel3.util._
 import xiangshan.backend.decode.ImmUnion
 import xiangshan.backend.execute.fu.FUWithRedirect
 import xiangshan.{FuOpType, RedirectLevel, XSModule}
+import xiangshan.ExceptionNO.illegalInstr
 import xs.utils.{ParallelMux, SignExt}
 
 class JumpDataModule(implicit p: Parameters) extends XSModule {
@@ -101,5 +102,6 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
   io.in.ready := io.out.ready
   io.out.valid := valid
   io.out.bits.uop := io.in.bits.uop
+  io.out.bits.uop.cf.exceptionVec(illegalInstr) := valid && JumpOpType.jumpOpIsFDIcall(io.in.bits.uop.ctrl.fuOpType) && io.in.bits.uop.cf.FDIUntrusted
   io.out.bits.data := jumpDataModule.io.result
 }

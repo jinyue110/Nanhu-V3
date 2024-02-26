@@ -32,6 +32,7 @@ class JmpComplexImp(outer:JmpComplex, id: Int, bypassNum:Int) extends BasicExuCo
   private val issueOut = outer.issueNode.out.head._1
   val io = IO(new Bundle {
     val prefetchI = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
+    val fdicallTarget = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
   })
 
   issueOut <> issueIn
@@ -40,4 +41,6 @@ class JmpComplexImp(outer:JmpComplex, id: Int, bypassNum:Int) extends BasicExuCo
   io.prefetchI := outer.jmp.module.io.prefetchI
 
   issueIn.issue.ready := issueOut.issue.ready
+
+  outer.jmp.module.io.fdicallTarget <> io.fdicallTarget
 }

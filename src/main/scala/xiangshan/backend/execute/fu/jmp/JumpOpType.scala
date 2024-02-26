@@ -13,5 +13,5 @@ object JumpOpType {
   def jumpOpIsJalr(op: UInt): Bool = op === jalr
   def jumpOpIsAuipc(op: UInt): Bool = op === auipc
   def jumpOpIsPrefetch_I(op: UInt): Bool = op === prefetch_i
-  def jumpOpIsFDIcall(op: UInt): UInt = op(2)
+  def jumpOpIsFDIcall(op: UInt): Bool = op === fdicall_jr
 }
