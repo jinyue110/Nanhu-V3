@@ -390,15 +390,6 @@ object BDecode extends DecodeConstants{
 }
 
 /**
-  * N extension (user-level interrupts) Decode constants
-  */
-object NDecode extends DecodeConstants {
-  val table: Array[(BitPat, List[BitPat])] = Array(
-    URET -> List(SrcType.reg, SrcType.imm, SrcType.X, FuType.csr, CSROpType.jmp, Y, N, N, Y, Y, N, SelImm.IMM_I)
-  )
-}
-
-/**
   * DASICS custom instructions
   */
 object DasicsDecode extends DecodeConstants {
@@ -1067,7 +1058,6 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     CBODecode.table ++
     VectorConfDecode.table ++
     vdecode_table ++
-    NDecode.table ++
     DasicsDecode.table ++
 
 //    ++ SvinvalDecode.table

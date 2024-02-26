@@ -4,19 +4,6 @@ import chisel3._
 import chisel3.util._
 
 trait HasCSRConst {
-
-  // User Trap Setup
-  val Ustatus       = 0x000
-  val Uie           = 0x004
-  val Utvec         = 0x005
-
-  // User Trap Handling
-  val Uscratch      = 0x040
-  val Uepc          = 0x041
-  val Ucause        = 0x042
-  val Utval         = 0x043
-  val Uip           = 0x044
-
   // Unprivileged Floating-Point CSRs
   val Fflags        = 0x001
   val Frm           = 0x002
@@ -78,8 +65,6 @@ trait HasCSRConst {
 
   // Supervisor Trap Setup
   val Sstatus       = 0x100
-  val Sedeleg       = 0x102
-  val Sideleg       = 0x103
   val Sie           = 0x104
   val Stvec         = 0x105
   val Scounteren    = 0x106
