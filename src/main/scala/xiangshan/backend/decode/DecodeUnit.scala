@@ -390,12 +390,11 @@ object BDecode extends DecodeConstants{
 }
 
 /**
-  * DASICS custom instructions
+  * FDI custom instructions
   */
-object DasicsDecode extends DecodeConstants {
+object FDIDecode extends DecodeConstants {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    DASICSCALL_J -> List(SrcType.pc, SrcType.imm, SrcType.X, FuType.jmp, JumpOpType.dasicscall_j, Y, N, N, Y, Y, N, SelImm.IMM_DIJ),
-    DASICSCALL_JR-> List(SrcType.reg,SrcType.imm, SrcType.X, FuType.jmp, JumpOpType.dasicscall_jr,Y, N, N, Y, Y, N, SelImm.IMM_I)
+    FDICALL_JR-> List(SrcType.reg,  SrcType.imm, SrcType.X,   FuType.jmp, JumpOpType.fdicall_jr,  Y, N, N, N, Y, Y, N, N, VstartType.hold, SelImm.IMM_I)
   )
 }
 
@@ -969,14 +968,6 @@ case class Imm_C() extends Imm(11) {
 case class Imm_CI() extends Imm(15) {
   override def do_toImm32(minBits: UInt): UInt = ZeroExt(Cat(minBits, 0.U(1.W)), 32)
   override def minBitsFromInstr(instr: UInt): UInt = Cat(instr(29, 20), instr(19,15))
-
-/* immediate used in DASICSCALL.J */
-case class Imm_DIJ() extends Imm(22) {
-  override def do_toImm32(minBits: UInt): UInt = SignExt(Cat(minBits, 0.U(1.W)), 32)
-
-  override def minBitsFromInstr(instr: UInt): UInt = {
-    Cat(instr(31), instr(7), instr(20, 15), instr(11, 8), instr(30, 21))
-  }
 }
 
 object ImmUnion {
@@ -990,8 +981,7 @@ object ImmUnion {
   val VC = Imm_C()
   val VCI = Imm_CI()
   val VA = Imm_VI()
-  val DIJ = Imm_DIJ()
-  val imms = Seq(I, S, B, U, J, Z, B6, VC, VCI, VA, DIJ)
+  val imms = Seq(I, S, B, U, J, Z, B6, VC, VCI, VA)
   val maxLen = imms.maxBy(_.len).len
   val immSelMap = Seq(
     SelImm.IMM_I,
@@ -1003,8 +993,7 @@ object ImmUnion {
     SelImm.IMM_B6,
     SelImm.IMM_C,
     SelImm.IMM_CI,
-    SelImm.IMM_VA,
-    SelImm.IMM_DIJ
+    SelImm.IMM_VA
   ).zip(imms)
   println(s"ImmUnion max len: $maxLen")
 }
@@ -1016,8 +1005,7 @@ case class Imm_LUI_LOAD() {
   }
   def getLuiImm(uop: MicroOp): UInt = {
     val loadImmLen = Imm_I().len
-    //val imm_u = Cat(uop.psrc(1), uop.psrc(0), uop.ctrl.imm(ImmUnion.maxLen - 1, loadImmLen))
-    val imm_u = Cat(uop.psrc(1), uop.psrc(0), uop.ctrl.imm(ImmUnion.U.len - 1, loadImmLen))
+    val imm_u = Cat(uop.psrc(1), uop.psrc(0), uop.ctrl.imm(ImmUnion.maxLen - 1, loadImmLen))
     Imm_U().do_toImm32(imm_u)
   }
 }
@@ -1058,7 +1046,7 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     CBODecode.table ++
     VectorConfDecode.table ++
     vdecode_table ++
-    DasicsDecode.table ++
+    FDIDecode.table
 
 //    ++ SvinvalDecode.table
   // assertion for LUI: only LUI should be assigned `selImm === SelImm.IMM_U && fuType === FuType.alu`
@@ -1113,12 +1101,6 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
   cs.lsrc(2) := Mux(isVector, ctrl_flow.instr(RD_MSB, RD_LSB), ctrl_flow.instr(RS3_MSB, RS3_LSB))
   // read dest location
   cs.ldest := ctrl_flow.instr(RD_MSB, RD_LSB)
-
-  // set RD=ra (0x1) for DasicsCall.J
-  val isDasicsCallJ = cs.fuType === FuType.jmp && cs.fuOpType === JumpOpType.dasicscall_j
-  when (isDasicsCallJ) {
-    cs.ldest := 0x1.U((RD_MSB - RD_LSB + 1).W)
-  }
 
   // fill in exception vector
   cf_ctrl.cf.exceptionVec := io.enq.ctrl_flow.exceptionVec
