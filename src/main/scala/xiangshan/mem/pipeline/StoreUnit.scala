@@ -152,9 +152,6 @@ class StoreUnit_S1(implicit p: Parameters) extends XSModule with HasPerfLogging 
   io.out.bits.uop.cf.exceptionVec(storePageFault) := (io.dtlbResp.bits.excp(0).pf.st || io.in.bits.uop.cf.exceptionVec(storePageFault)) && EnableMem
   io.out.bits.uop.cf.exceptionVec(storeAccessFault) := io.dtlbResp.bits.excp(0).af.st && EnableMem
 
-  io.out.bits.uop.cf.exceptionVec(pkuStorePageFault) := io.dtlbResp.bits.excp(0).pkf.st &&  io.dtlbResp.bits.excp(0).pkf.isUser
-  io.out.bits.uop.cf.exceptionVec(pksStorePageFault) := io.dtlbResp.bits.excp(0).pkf.st && !io.dtlbResp.bits.excp(0).pkf.isUser
-
   io.lsq.valid := io.in.valid
   io.lsq.bits := io.out.bits
   io.lsq.bits.miss := s1_tlb_miss

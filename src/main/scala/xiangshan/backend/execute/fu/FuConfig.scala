@@ -226,7 +226,7 @@ object FuConfigs{
     latency = Int.MaxValue,
     hasRedirect = true,
     trigger = true,
-    exceptionOut = Seq(loadAddrMisaligned, loadAccessFault, loadPageFault, dasicsULoadAccessFault, dasicsSLoadAccessFault, pkuLoadPageFault, pksLoadPageFault),
+    exceptionOut = Seq(loadAddrMisaligned, loadAccessFault, loadPageFault, dasicsULoadAccessFault, dasicsSLoadAccessFault),
     triggerVrfWakeup = true
   )
 
@@ -261,7 +261,7 @@ object FuConfigs{
     latency = Int.MaxValue,
     hasRedirect = true,
     trigger = true,
-    exceptionOut = Seq(storeAddrMisaligned, storeAccessFault, storePageFault, dasicsUStoreAccessFault, dasicsSStoreAccessFault, pkuStorePageFault, pksStorePageFault)
+    exceptionOut = Seq(storeAddrMisaligned, storeAccessFault, storePageFault, dasicsUStoreAccessFault, dasicsSStoreAccessFault)
   )
 
   val stdCfg = FuConfig(

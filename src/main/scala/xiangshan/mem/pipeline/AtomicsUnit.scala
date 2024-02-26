@@ -134,10 +134,6 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
       //software is used to restrict atomic instructions from accessing mmio. Now if is_mmio is true,we treat it as an exception
       exceptionVec(storeAccessFault)    := io.dtlb.resp.bits.excp(0).af.st
       exceptionVec(loadAccessFault)     := io.dtlb.resp.bits.excp(0).af.ld
-      exceptionVec(pkuLoadPageFault)    := io.dtlb.resp.bits.excp(0).pkf.ld &&  io.dtlb.resp.bits.excp(0).pkf.isUser
-      exceptionVec(pkuStorePageFault)   := io.dtlb.resp.bits.excp(0).pkf.st &&  io.dtlb.resp.bits.excp(0).pkf.isUser
-      exceptionVec(pksLoadPageFault)    := io.dtlb.resp.bits.excp(0).pkf.ld && !io.dtlb.resp.bits.excp(0).pkf.isUser
-      exceptionVec(pksStorePageFault)   := io.dtlb.resp.bits.excp(0).pkf.st && !io.dtlb.resp.bits.excp(0).pkf.isUser
       static_pm := io.dtlb.resp.bits.static_pm
 
       when (!io.dtlb.resp.bits.miss) {
@@ -166,9 +162,7 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
     is_mmio := pmp.mmio
     // NOTE: only handle load/store exception here, if other exception happens, don't send here
     val exception_va = exceptionVec(storePageFault) || exceptionVec(loadPageFault) ||
-      exceptionVec(storeAccessFault) || exceptionVec(loadAccessFault) ||
-      exceptionVec(pkuLoadPageFault) || exceptionVec(pkuStorePageFault) ||
-      exceptionVec(pksLoadPageFault) || exceptionVec(pksStorePageFault)
+      exceptionVec(storeAccessFault) || exceptionVec(loadAccessFault)
     val exception_pa = pmp.st || pmp.ld
     when (exception_va || exception_pa) {
       state := s_finish

@@ -166,8 +166,8 @@ package object xiangshan {
   }
 
   object ExceptionVec {
-    // 16 RV exception + 8 dasics excepiton + 4 mpk exception
-    def apply() = Vec(16 + 8 + 4, Bool())
+    // 16 RV exception + 8 dasics excepiton
+    def apply() = Vec(16 + 8, Bool())
   }
 
   object PMAMode {
@@ -345,13 +345,6 @@ package object xiangshan {
     def dasicsUEcallAccessFault = 30 - dasicsExcOffset
     def dasicsSEcallAccessFault = 31 - dasicsExcOffset
 
-    def mpkExcOffset = 8
-    //  mpk exception       number   offset
-    def pkuLoadPageFault    = 32 - mpkExcOffset
-    def pkuStorePageFault   = 33 - mpkExcOffset
-    def pksLoadPageFault    = 34 - mpkExcOffset
-    def pksStorePageFault   = 35 - mpkExcOffset
-
     def priorities = Seq(
       // DASICS Instruction fault actually belongs to the last branch instr
       dasicsUIntrAccessFault,
@@ -373,11 +366,7 @@ package object xiangshan {
       dasicsUStoreAccessFault,
       dasicsSStoreAccessFault,
       dasicsUEcallAccessFault,
-      dasicsSEcallAccessFault,
-      pksLoadPageFault,
-      pksStorePageFault,
-      pkuLoadPageFault,
-      pkuStorePageFault
+      dasicsSEcallAccessFault
     )
     def all = priorities.distinct.sorted
     def frontendSet = Seq(
@@ -398,12 +387,6 @@ package object xiangshan {
       dasicsUEcallAccessFault,
       dasicsSEcallAccessFault
     )
-    def mpkSet = Seq(
-      pkuLoadPageFault,
-      pkuStorePageFault,
-      pksLoadPageFault,
-      pksStorePageFault
-    )
     def partialSelect(vec: Vec[Bool], select: Seq[Int]): Vec[Bool] = {
       val new_vec = Wire(ExceptionVec())
       new_vec.foreach(_ := false.B)
@@ -411,7 +394,6 @@ package object xiangshan {
       new_vec
     }
     def selectDasics(vec:Vec[Bool]): Vec[Bool] = partialSelect(vec, dasicsSet)
-    def selectMpk(vec:Vec[Bool]): Vec[Bool] = partialSelect(vec, mpkSet)
     def selectFrontend(vec: Vec[Bool]): Vec[Bool] = partialSelect(vec, frontendSet)
     def selectAll(vec: Vec[Bool]): Vec[Bool] = partialSelect(vec, ExceptionNO.all)
     def selectByFu(vec:Vec[Bool], fuConfig: FuConfig): Vec[Bool] =

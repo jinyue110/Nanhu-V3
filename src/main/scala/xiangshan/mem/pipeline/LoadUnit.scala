@@ -270,9 +270,6 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule with HasPerfLogging{
   io.out.bits.uop.cf.exceptionVec(loadPageFault) := (io.dtlbResp.bits.excp(0).pf.ld || io.in.bits.uop.cf.exceptionVec(loadPageFault)) && EnableMem
   io.out.bits.uop.cf.exceptionVec(loadAccessFault) := io.dtlbResp.bits.excp(0).af.ld && EnableMem
 
-  io.out.bits.uop.cf.exceptionVec(pkuLoadPageFault) := io.dtlbResp.bits.excp(0).pkf.ld &&  io.dtlbResp.bits.excp(0).pkf.isUser
-  io.out.bits.uop.cf.exceptionVec(pksLoadPageFault) := io.dtlbResp.bits.excp(0).pkf.ld && !io.dtlbResp.bits.excp(0).pkf.isUser
-
   io.out.bits.ptwBack := io.dtlbResp.bits.ptwBack
   io.out.bits.rsIdx := io.in.bits.rsIdx
 

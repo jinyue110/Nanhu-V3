@@ -145,7 +145,6 @@ class TlbData(superpage: Boolean = false)(implicit p: Parameters) extends TlbBun
   val level = if(superpage) Some(UInt(1.W)) else None // /*2 for 4KB,*/ 1 for 2MB, 0 for 1GB
   val ppn = UInt(ppnLen.W)
   val perm = new TlbPermBundle
-  val pkey = UInt(pkeyLen.W)
 
   def genPPN(vpn: UInt): UInt = {
     if (superpage) {
@@ -157,10 +156,9 @@ class TlbData(superpage: Boolean = false)(implicit p: Parameters) extends TlbBun
     }
   }
 
-  def apply(ppn: UInt, level: UInt, perm: UInt, pkey: UInt, pf: Bool, af: Bool) = {
+  def apply(ppn: UInt, level: UInt, perm: UInt, pf: Bool, af: Bool) = {
     this.level.map(_ := level(0))
     this.ppn := ppn
-    this.pkey := pkey
     // refill pagetable perm
     val ptePerm = perm.asTypeOf(new PtePermBundle)
     this.perm.pf:= pf
@@ -178,7 +176,7 @@ class TlbData(superpage: Boolean = false)(implicit p: Parameters) extends TlbBun
 
   override def toPrintable: Printable = {
     val insideLevel = level.getOrElse(0.U)
-    p"level:${insideLevel} ppn:${Hexadecimal(ppn)} perm:${perm} pkey:${pkey}"
+    p"level:${insideLevel} ppn:${Hexadecimal(ppn)} perm:${perm}"
   }
 
 }
@@ -195,7 +193,6 @@ class TlbEntry(pageNormal: Boolean, pageSuper: Boolean)(implicit p: Parameters) 
   val ppn = if (!pageNormal) UInt((ppnLen - vpnnLen).W)
             else UInt(ppnLen.W)
   val perm = new TlbPermBundle
-  val pkey = UInt(pkeyLen.W)
 
   /** level usage:
    *  !PageSuper: page is only normal, level is None, match all the tag
@@ -248,7 +245,6 @@ class TlbEntry(pageNormal: Boolean, pageSuper: Boolean)(implicit p: Parameters) 
                           else 0.U })
     this.ppn := { if (!pageNormal) item.entry.ppn(ppnLen-1, vpnnLen)
                   else item.entry.ppn }
-    this.pkey := item.entry.pkey.get
     val ptePerm = item.entry.perm.get.asTypeOf(new PtePermBundle().cloneType)
     this.perm.pf := item.pf
     this.perm.af := item.af
@@ -288,7 +284,7 @@ class TlbEntry(pageNormal: Boolean, pageSuper: Boolean)(implicit p: Parameters) 
 
   override def toPrintable: Printable = {
     val inner_level = level.getOrElse(2.U)
-    p"asid: ${asid} level:${inner_level} vpn:${Hexadecimal(tag)} ppn:${Hexadecimal(ppn)} perm:${perm} pkey:${pkey}"
+    p"asid: ${asid} level:${inner_level} vpn:${Hexadecimal(tag)} ppn:${Hexadecimal(ppn)} perm:${perm}"
   }
 
 }
@@ -317,7 +313,6 @@ class TlbStorageIO(nSets: Int, nWays: Int, ports: Int, nDups: Int = 1)(implicit 
     })))
     val resp = Vec(ports, ValidIO(new Bundle{
       val hit = Output(Bool())
-      val pkey = Vec(nDups, Output(UInt(pkeyLen.W)))
       val ppn = Vec(nDups, Output(UInt(ppnLen.W)))
       val perm = Vec(nDups, Output(new TlbPermBundle()))
     }))
@@ -344,7 +339,7 @@ class TlbStorageIO(nSets: Int, nWays: Int, ports: Int, nDups: Int = 1)(implicit 
   }
 
   def r_resp_apply(i: Int) = {
-    (this.r.resp_hit_sameCycle(i), this.r.resp(i).bits.hit, this.r.resp(i).bits.ppn, this.r.resp(i).bits.perm, this.r.resp(i).bits.pkey)
+    (this.r.resp_hit_sameCycle(i), this.r.resp(i).bits.hit, this.r.resp(i).bits.ppn, this.r.resp(i).bits.perm)
   }
 
   def w_apply(valid: Bool, wayIdx: UInt, data: PtwResp, data_replenish: PMPConfig): Unit = {
@@ -410,12 +405,6 @@ class TlbExceptionBundle(implicit p: Parameters) extends TlbBundle {
   val instr = Output(Bool())
 }
 
-class TlbMpkExceptionBundle(implicit p: Parameters) extends TlbBundle {
-  val ld = Output(Bool())
-  val st = Output(Bool())
-  val isUser = Output(Bool())
-}
-
 class TlbResp(nDups: Int = 1)(implicit p: Parameters) extends TlbBundle {
   val paddr = Vec(nDups, Output(UInt(PAddrBits.W)))
   val miss = Output(Bool())
@@ -423,14 +412,12 @@ class TlbResp(nDups: Int = 1)(implicit p: Parameters) extends TlbBundle {
   val excp = Vec(nDups, new Bundle {
     val pf = new TlbExceptionBundle()
     val af = new TlbExceptionBundle()
-    val pkf = new TlbMpkExceptionBundle()
   })
   val static_pm = Output(Valid(Bool())) // valid for static, bits for mmio result from normal entries
   val ptwBack = Output(Bool()) // when ptw back, wake up replay rs's state
 
   override def toPrintable: Printable = {
-    p"paddr:0x${Hexadecimal(paddr(0))} miss:${miss} excp.pf: ld:${excp(0).pf.ld} st:${excp(0).pf.st} instr:${excp(0).pf.instr} ptwBack:${ptwBack}" +
-      p"excp.pkf: ld:${excp(0).pkf.ld} st:${excp(0).pkf.st} isUser:${excp(0).pkf.isUser}"
+    p"paddr:0x${Hexadecimal(paddr(0))} miss:${miss} excp.pf: ld:${excp(0).pf.ld} st:${excp(0).pf.st} instr:${excp(0).pf.instr} ptwBack:${ptwBack}"
   }
 }
 
@@ -494,8 +481,6 @@ abstract class PtwModule(outer: PTW) extends LazyModuleImp(outer)
 
 class PteBundle(implicit p: Parameters) extends PtwBundle{
   val reserved  = UInt(pteResLen.W)
-  val pkey = UInt(pkeyLen.W)
-  val padding = UInt(paddingLen.W)
   val ppn  = UInt(ppnLen.W)
   val rsw  = UInt(2.W)
   val perm = new Bundle {
@@ -536,14 +521,13 @@ class PteBundle(implicit p: Parameters) extends PtwBundle{
   }
 
   override def toPrintable: Printable = {
-    p"ppn:0x${Hexadecimal(ppn)} perm:b${Binary(perm.asUInt)} pkey:0x${Hexadecimal(pkey)}"
+    p"ppn:0x${Hexadecimal(ppn)} perm:b${Binary(perm.asUInt)}"
   }
 }
 
 class PtwEntry(tagLen: Int, hasPerm: Boolean = false, hasLevel: Boolean = false)(implicit p: Parameters) extends PtwBundle {
   val tag = UInt(tagLen.W)
   val asid = UInt(asidLen.W)
-  val pkey = if (hasPerm) Some(UInt(pkeyLen.W)) else None
   val ppn = UInt(ppnLen.W)
   val perm = if (hasPerm) Some(new PtePermBundle) else None
   val level = if (hasLevel) Some(UInt(log2Up(Level).W)) else None
@@ -582,7 +566,6 @@ class PtwEntry(tagLen: Int, hasPerm: Boolean = false, hasLevel: Boolean = false)
     require(this.asid.getWidth <= asid.getWidth) // maybe equal is better, but ugly outside
 
     tag := vpn(vpnLen - 1, vpnLen - tagLen)
-    pkey.map(_ := pte.asTypeOf(new PteBundle().cloneType).pkey)
     ppn := pte.asTypeOf(new PteBundle().cloneType).ppn
     perm.map(_ := pte.asTypeOf(new PteBundle().cloneType).perm)
     this.asid := asid
@@ -602,7 +585,6 @@ class PtwEntry(tagLen: Int, hasPerm: Boolean = false, hasLevel: Boolean = false)
     // p"tag:0x${Hexadecimal(tag)} ppn:0x${Hexadecimal(ppn)} perm:${perm}"
     p"tag:0x${Hexadecimal(tag)} ppn:0x${Hexadecimal(ppn)} " +
       (if (hasPerm) p"perm:${perm.getOrElse(0.U.asTypeOf(new PtePermBundle))} " else p"") +
-      (if (hasPerm) p"pkey:${pkey.getOrElse(0.U)}" else p"") +
       (if (hasLevel) p"level:${level.getOrElse(0.U)}" else p"") +
       p"prefetch:${prefetch}"
   }
@@ -614,7 +596,6 @@ class PtwEntries(num: Int, tagLen: Int, level: Int, hasPerm: Boolean)(implicit p
 
   val tag  = UInt(tagLen.W)
   val asid = UInt(asidLen.W)
-  val pkeys = if (hasPerm) Some(Vec(num, UInt(pkeyLen.W))) else None
   val ppns = Vec(num, UInt(ppnLen.W))
   val vs   = Vec(num, Bool())
   val perms = if (hasPerm) Some(Vec(num, new PtePermBundle)) else None
@@ -657,7 +638,6 @@ class PtwEntries(num: Int, tagLen: Int, level: Int, hasPerm: Boolean)(implicit p
     ps.prefetch := prefetch
     for (i <- 0 until num) {
       val pte = data((i+1)*XLEN-1, i*XLEN).asTypeOf(new PteBundle)
-      ps.pkeys.map(_(i) := pte.pkey)
       ps.ppns(i) := pte.ppn
       ps.vs(i)   := !pte.isPf(levelUInt) && (if (hasPerm) pte.isLeaf() else !pte.isLeaf())
       ps.perms.map(_(i) := pte.perm)
@@ -670,10 +650,8 @@ class PtwEntries(num: Int, tagLen: Int, level: Int, hasPerm: Boolean)(implicit p
     // require(num == 4, "if num is not 4, please comment this toPrintable")
     // NOTE: if num is not 4, please comment this toPrintable
     val permsInner = perms.getOrElse(0.U.asTypeOf(Vec(num, new PtePermBundle)))
-    val pkeysInner = pkeys.getOrElse(0.U.asTypeOf(Vec(num, UInt(pkeyLen.W))))
     p"asid: ${Hexadecimal(asid)} tag:0x${Hexadecimal(tag)} ppns:${printVec(ppns)} vs:${Binary(vs.asUInt)} " +
-      (if (hasPerm) p"perms:${printVec(permsInner)}" else p"") +
-      (if (hasPerm) p"pkeys:${printVec(pkeysInner)}" else p"")
+      (if (hasPerm) p"perms:${printVec(permsInner)}" else p"")
   }
 }
 
@@ -752,7 +730,6 @@ class PtwResp(implicit p: Parameters) extends PtwBundle {
   def apply(pf: Bool, af: Bool, level: UInt, pte: PteBundle, vpn: UInt, asid: UInt) = {
     this.entry.level.map(_ := level)
     this.entry.tag := vpn
-    this.entry.pkey.map(_ := pte.pkey)
     this.entry.perm.map(_ := pte.getPerm())
     this.entry.ppn := pte.ppn
     this.entry.prefetch := DontCare
