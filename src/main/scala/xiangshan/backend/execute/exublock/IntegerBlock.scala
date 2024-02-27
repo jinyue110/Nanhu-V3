@@ -27,6 +27,7 @@ import chisel3.util._
 import xiangshan.{ExuInput, ExuOutput, XSCoreParamsKey}
 import xiangshan.backend.execute.exu.FenceIO
 import xiangshan.backend.execute.fu.csr.CSRFileIO
+import xiangshan.backend.execute.fu._
 
 class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
   require(miscNum == 1)
@@ -64,5 +65,6 @@ class IntegerBlockImp(outer:IntegerBlock) extends BasicExuBlockImp(outer){
   outer.aluMuls.foreach(_.module.io.csr_frm := io.csrio.fpu.frm)
   io.prefetchI := outer.jmps.head.module.io.prefetchI
 
-  outer.aluMiscs.head.module.io.fdicallTarget <> outer.jmps.head.module.io.fdicallTarget
+  outer.aluMiscs.head.module.io.fdicallSnpc <> outer.jmps.head.module.io.fdicallSnpc
+  outer.aluMiscs.head.module.io.csrio.customCtrl.distribute_csr <> outer.jmps.head.module.io.fdicallDistributedCSR
 }

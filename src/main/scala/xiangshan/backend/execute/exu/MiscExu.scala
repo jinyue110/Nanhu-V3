@@ -68,7 +68,7 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
     val writebackFromMou = Flipped(Decoupled(new ExuOutput))
     val fenceio = new FenceIO
     val csrio = new CSRFileIO
-    val fdicallTarget = Input(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
+    val fdicallSnpc = Input(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
   })
   private val issuePort = outer.issueNode.in.head._1
   private val writebackPort = outer.writebackNode.out.head._1
@@ -96,10 +96,10 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   })
 
   // FDICALL.JR will write FDIReturnPC CSR
-  csr.io.in.valid := RegEnable(true.B, io.fdicallTarget.valid)
-  csr.io.in.bits.src(0) := RegEnable(io.fdicallTarget.bits, io.fdicallTarget.valid)
-  csr.io.in.bits.uop.ctrl.imm := RegEnable(csr.FDIReturnPc.U, io.fdicallTarget.valid)
-  csr.io.in.bits.uop.ctrl.fuOpType := RegEnable(CSROpType.wrt, io.fdicallTarget.valid)
+  csr.io.in.valid := RegNext(io.fdicallSnpc.valid, false.B)
+  csr.io.in.bits.src(0) := RegEnable(io.fdicallSnpc.bits, io.fdicallSnpc.valid)
+  csr.io.in.bits.uop.ctrl.imm := RegEnable(csr.FDIReturnPc.U, io.fdicallSnpc.valid)
+  csr.io.in.bits.uop.ctrl.fuOpType := RegEnable(CSROpType.wrt, io.fdicallSnpc.valid)
 
   private val fuOut = fuSeq.map(_.io.out)
   private val outSel = fuOut.map(_.fire)

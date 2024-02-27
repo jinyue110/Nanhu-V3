@@ -17,8 +17,8 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.diplomacy.LazyModule
-import xiangshan.backend.execute.exu.{JmpExu, ExuType}
-import xiangshan.XSCoreParamsKey
+import xiangshan.backend.execute.exu.{ExuType, JmpExu}
+import xiangshan.{DistributedCSRIO, XSCoreParamsKey}
 
 class JmpComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends BasicExuComplex{
   val jmp = LazyModule(new JmpExu(id, "JmpComplex", bypassNum))
@@ -32,7 +32,8 @@ class JmpComplexImp(outer:JmpComplex, id: Int, bypassNum:Int) extends BasicExuCo
   private val issueOut = outer.issueNode.out.head._1
   val io = IO(new Bundle {
     val prefetchI = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
-    val fdicallTarget = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
+    val fdicallSnpc = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
+    val fdicallDistributedCSR = Input(new DistributedCSRIO())
   })
 
   issueOut <> issueIn
@@ -42,5 +43,6 @@ class JmpComplexImp(outer:JmpComplex, id: Int, bypassNum:Int) extends BasicExuCo
 
   issueIn.issue.ready := issueOut.issue.ready
 
-  outer.jmp.module.io.fdicallTarget <> io.fdicallTarget
+  outer.jmp.module.io.fdicallSnpc <> io.fdicallSnpc
+  outer.jmp.module.io.fdicallDistributedCSR <> io.fdicallDistributedCSR
 }

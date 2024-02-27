@@ -19,6 +19,7 @@ import chisel3.util._
 import xiangshan.backend.execute.fu.csr.{CSR, CSRFileIO}
 import xiangshan.backend.execute.fu.fence.{SfenceBundle, _}
 import xiangshan.backend.execute.fu.jmp._
+import xiangshan.backend.execute.fu.JumpFDI
 import xiangshan.backend.execute.fu.{FUWithRedirect, FuConfigs, FunctionUnit}
 import xiangshan._
 import xs.utils.{DelayN, ParallelMux, SignExt}
@@ -41,7 +42,8 @@ class JmpExuImpl(outer:JmpExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   val io = IO(new Bundle{
     val bypassIn = Input(Vec(outer.bypassInNum, Valid(new ExuOutput)))
     val prefetchI = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
-    val fdicallTarget = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
+    val fdicallSnpc = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
+    val fdicallDistributedCSR = Input(new DistributedCSRIO())
   })
   private val issuePort = outer.issueNode.in.head._1
   private val writebackPort = outer.writebackNode.out.head._1
@@ -71,6 +73,7 @@ class JmpExuImpl(outer:JmpExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   writebackPort.bits.debug.paddr := 0.U
   writebackPort.bits.debug.vaddr := 0.U
 
-  io.fdicallTarget.valid := jmp.io.in.valid && JumpOpType.jumpOpIsFDIcall((jmp.io.in.bits.uop.ctrl.fuOpType))
-  io.fdicallTarget.bits := SignExt(jmp.io.in.bits.uop.cf.pc, p(XSCoreParamsKey).XLEN) + 4.U
+  io.fdicallSnpc.valid := jmp.io.in.valid && JumpOpType.jumpOpIsFDIcall((jmp.io.in.bits.uop.ctrl.fuOpType))
+  io.fdicallSnpc.bits := jmp.io.out.bits.data
+  io.fdicallDistributedCSR <> jmp.fdicallDistributedCSR
 }

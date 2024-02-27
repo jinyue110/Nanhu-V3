@@ -99,7 +99,8 @@ object FuConfigs{
     writeVxsat = false,
     latency = 0,
     trigger = false,
-    hasRedirect = true
+    hasRedirect = true,
+    exceptionOut = Seq(illegalInstr, FDIUJumpFault)
   )
   val fenceCfg = FuConfig(
     name = "fence",
