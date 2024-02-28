@@ -109,7 +109,7 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
 
   // FDI jump modules
   val fdi = Module(new JumpFDI)
-  fdi.io.distribute_csr <> fdicallDistributedCSR
+  fdi.io.distribute_csr <> RegNext(fdicallDistributedCSR)
 
   val fdiJumpChecker = Module(new FDIJumpChecker)
   fdiJumpChecker.io.req.valid := io.in.valid && (JumpOpType.jumpOpIsJal(func) || JumpOpType.jumpOpIsJalr(func))  //only check jump (jal/jalr) instruction
