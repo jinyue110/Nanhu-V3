@@ -83,6 +83,11 @@ trait HasCSRConst {
   val Sdsid         = 0x9C0
   val Sfetchctl     = 0x9E0
 
+  // SPMP
+  val SpmpSwitch    = 0x19F
+  val SpmpcfgBase   = 0x1A0
+  val SpmpaddrBase  = 0x1B0
+
   // Machine Information Registers
   val Mvendorid     = 0xF11
   val Marchid       = 0xF12
