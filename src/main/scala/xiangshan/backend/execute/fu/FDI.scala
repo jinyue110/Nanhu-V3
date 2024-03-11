@@ -276,6 +276,20 @@ class FDIJumpCheckerIO(implicit p: Parameters) extends XSBundle with FDIConst{
   }
 }
 
+// This bundle works for FDICall and Jump Exception simultaneously
+// TODO: Need a better name
+class FDICallJumpExcpIO(implicit p: Parameters) extends XSBundle with FDIConst {
+  val isFDICall = Output(Bool())
+  val isJumpExcp = Output(Bool())
+  val target = Output(UInt(XLEN.W))
+
+  def connect(isFDICall: Bool, isJumpExcp: Bool, target: UInt): Unit = {
+    this.isFDICall := isFDICall
+    this.isJumpExcp := isJumpExcp
+    this.target := target
+  }
+}
+
 class MemFDI(implicit p: Parameters) extends XSModule with FDIMethod with HasCSRConst {
   val io: FDIMemIO = IO(new FDIMemIO())
 
