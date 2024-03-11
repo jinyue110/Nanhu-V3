@@ -27,7 +27,7 @@ import chisel3.util._
 import xiangshan.{ExuInput, ExuOutput, XSCoreParamsKey}
 import xiangshan.backend.execute.exu.FenceIO
 import xiangshan.backend.execute.fu.csr.CSRFileIO
-import xiangshan.ExceptionNO.FDIUJumpFault
+import xiangshan.ExceptionNO.fdiUJumpFault
 
 class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
   require(miscNum == 1)
@@ -70,6 +70,6 @@ class IntegerBlockImp(outer:IntegerBlock) extends BasicExuBlockImp(outer){
   outer.aluMiscs.head.module.io.fdicallJumpExcpIO <> jmp_module.io.fdicallJumpExcpIO
   outer.aluMiscs.head.module.io.csrio.customCtrl.distribute_csr <> jmp_module.io.fdicallDistributedCSR
   outer.aluMiscs.head.module.io.csrio.memExceptionVAddr :=
-    Mux(outer.aluMiscs.head.module.io.csrio.exception.bits.uop.cf.exceptionVec(FDIUJumpFault),
+    Mux(outer.aluMiscs.head.module.io.csrio.exception.bits.uop.cf.exceptionVec(fdiUJumpFault),
       fdiUJumpExcpVAddr, io.csrio.memExceptionVAddr)
 }

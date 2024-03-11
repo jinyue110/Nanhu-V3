@@ -21,7 +21,7 @@ package xiangshan.backend.execute.exu
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import xiangshan.ExceptionNO.FDIUJumpFault
+import xiangshan.ExceptionNO.fdiUJumpFault
 import xiangshan.backend.execute.fu.csr.{CSR, CSRFileIO, CSROpType}
 import xiangshan.backend.execute.fu.fence.{SfenceBundle, _}
 import xiangshan.backend.execute.fu.jmp._
@@ -98,11 +98,13 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   })
 
   // FDICALL.JR will write FDIReturnPC CSR
-  when (RegNext(io.fdicallJumpExcpIO.isFDICall, false.B)) {
+  private val fdicallValid     = RegNext(io.fdicallJumpExcpIO.isFDICall, false.B)
+  private val fdicallTargetReg = RegEnable(io.fdicallJumpExcpIO.target, io.fdicallJumpExcpIO.isFDICall)
+  when (fdicallValid) {
     csr.io.in.valid := true.B
-    csr.io.in.bits.src(0) := RegNext(io.fdicallJumpExcpIO.target)
+    csr.io.in.bits.src(0) := fdicallTargetReg
     csr.io.in.bits.uop.ctrl.rfWen := false.B
-    csr.io.in.bits.uop.ctrl.imm := csr.FDIReturnPc.U
+    csr.io.in.bits.uop.ctrl.imm := csr.Fdireturnpc.U
     csr.io.in.bits.uop.ctrl.fuOpType := CSROpType.wrt
   }
 
