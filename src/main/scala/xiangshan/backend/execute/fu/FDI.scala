@@ -33,14 +33,12 @@ object FDIOp{
 }
 
 object FDICheckFault {
-    def noFDIFault     = "b000".U
+    def noFDIFault     = "b00".U
+    def UReadDascisFault  = "b01".U
+    def UWriteFDIFault = "b10".U
+    def UJumpFDIFault  = "b11".U
 
-
-    def UReadDascisFault  = "b001".U
-    def UWriteFDIFault = "b010".U
-    def UJumpFDIFault  = "b011".U
-
-    def apply() = UInt(3.W)
+    def apply() = UInt(2.W)
 }
 
 // FDI Config
