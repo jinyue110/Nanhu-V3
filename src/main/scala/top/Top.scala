@@ -158,6 +158,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     val dft_mode = IO(Input(Bool()))
     val rtc_clock = IO(Input(Bool()))
     val dfx_reset = Wire(new DFTResetSignals())
+    val bootrom_disable = IO(Input(Bool()))     //1: disable bootrom; 0: bootrom check enable
     dfx_reset.lgc_rst_n := dft_lgc_rst_n
     dfx_reset.mode := dft_mode
     dfx_reset.scan_mode := scan_mode
@@ -185,6 +186,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     dontTouch(dft_lgc_rst_n)
     dontTouch(dft_mode)
     dontTouch(dfx_reset)
+    dontTouch(bootrom_disable)
     misc.module.ext_intrs := io.extIntrs
     misc.module.dfx_reset := dfx_reset
     misc.module.rtc_clock := rtc_clock
@@ -193,6 +195,8 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       core.module.io.hartId := i.U
       core.module.io.dfx_reset := dfx_reset
       core.module.io.reset_vector := io.riscv_rst_vec(i)
+      //zdr: ROM init enable
+      core.module.io.XStileResetGate := !(misc.module.ROMInitEn | bootrom_disable)
       io.riscv_halt(i) := core.module.io.cpu_halt
     }
     core_rst_nodes.foreach(_.out.head._1 := false.B.asAsyncReset)

@@ -24,7 +24,7 @@ import xs.utils._
 import xiangshan.ExceptionNO._
 import xiangshan._
 import xiangshan.backend.execute.fu.FuConfigs.lduCfg
-import xiangshan.backend.execute.fu.PMPRespBundle
+import xiangshan.backend.execute.fu._
 import xiangshan.backend.execute.fu.csr.SdtrigExt
 import xiangshan.backend.issue.{RSFeedback, RSFeedbackType, RsIdx}
 import xiangshan.cache._
@@ -193,6 +193,7 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule with HasPerfLogging{
     val needLdVioCheckRedo = Output(Bool())
     val s1_cancel = Input(Bool())
     val bankConflictAvoidIn = Input(UInt(1.W))
+    val fdiReq = ValidIO(new FDIReqBundle())
   })
 
   val s1_uop = io.in.bits.uop
@@ -235,6 +236,12 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule with HasPerfLogging{
   io.loadViolationQueryReq.valid := io.in.valid && !(s1_exception || s1_tlb_miss || io.s1_kill) && EnableMem
   io.loadViolationQueryReq.bits.paddr := s1_paddr_dup_lsu
   io.loadViolationQueryReq.bits.uop := s1_uop
+
+  //FDI check
+  io.fdiReq.valid := io.out.fire //TODO: temporarily assignment
+  io.fdiReq.bits.addr := io.out.bits.vaddr //TODO: need for alignment?
+  io.fdiReq.bits.inUntrustedZone := io.out.bits.uop.fdiUntrusted
+  io.fdiReq.bits.operation := FDIOp.read
 
   // Generate forwardMaskFast to wake up insts earlier
   val forwardMaskFast = io.lsq.forwardMaskFast.asUInt | io.sbuffer.forwardMaskFast.asUInt
@@ -304,6 +311,7 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper wi
     val s2_can_replay_from_fetch = Output(Bool()) // dirty code
     val loadDataFromDcache = Output(new LoadDataFromDcacheBundle)
     val lpvCancel = Output(Bool())
+    val fdiResp = Flipped(new FDIRespBundle)
   })
 
   val pmp = WireInit(io.pmpResp)
@@ -328,6 +336,9 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper wi
     s2_exception_vec := 0.U.asTypeOf(s2_exception_vec.cloneType)
   }
   val s2_exception = Mux(EnableMem, ExceptionNO.selectByFu(s2_exception_vec, lduCfg).asUInt.orR,false.B)
+
+  //FDI load access fault
+  s2_exception_vec(fdiULoadAccessFault) := io.fdiResp.fdi_fault === FDICheckFault.UReadDascisFault
 
   // writeback access fault caused by ecc error / bus error
   //
@@ -537,6 +548,10 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
     val tlb = new TlbRequestIO(2)
     val pmp = Flipped(new PMPRespBundle()) // arrive same to tlb now
 
+    //FDI
+    val fdiReq = ValidIO(new  FDIReqBundle())
+    val fdiResp = Flipped(new FDIRespBundle())
+
     // provide prefetch info
     val prefetch_train = ValidIO(new LsPipelineBundle())
 
@@ -591,6 +606,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   load_s1.io.s1_cancel := RegEnable(load_s0.io.s0_cancel, load_s0.io.out.fire)
   load_s1.io.bankConflictAvoidIn := io.bankConflictAvoidIn
   assert(load_s1.io.in.ready)
+  io.fdiReq := load_s1.io.fdiReq
 
   // provide paddr for lq
   io.lsq.loadPaddrIn.valid := load_s1.io.out.valid
@@ -676,6 +692,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   load_s2.io.csrCtrl <> io.csrCtrl
   load_s2.io.sentFastUop := io.fastUop.valid
   assert(load_s2.io.in.ready)
+  load_s2.io.fdiResp := io.fdiResp
 
   // feedback bank conflict / ld-vio check struct hazard to rs
   io.feedbackFast.bits := RegNext(load_s1.io.rsFeedback.bits)   //remove clock-gating for timing

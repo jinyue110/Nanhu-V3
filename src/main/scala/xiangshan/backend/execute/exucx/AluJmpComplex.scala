@@ -24,6 +24,7 @@ import chisel3.util._
 import freechips.rocketchip.diplomacy.LazyModule
 import xiangshan.backend.execute.exu.{AluExu, ExuType, FenceIO, MiscExu}
 import xiangshan.backend.execute.fu.csr.CSRFileIO
+import xiangshan.backend.execute.fu.FDICallJumpExcpIO
 import xiangshan.{ExuInput, ExuOutput, FuType, XSCoreParamsKey}
 
 class AluMiscComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends BasicExuComplex{
@@ -46,6 +47,7 @@ class AluMiscComplexImp(outer:AluMiscComplex, id: Int, bypassNum:Int) extends Ba
     val csrio = new CSRFileIO
     val issueToMou = Decoupled(new ExuInput)
     val writebackFromMou = Flipped(Decoupled(new ExuOutput))
+    val fdicallJumpExcpIO = Flipped(new FDICallJumpExcpIO)
   })
 
   issueAlu <> issueIn
@@ -60,6 +62,8 @@ class AluMiscComplexImp(outer:AluMiscComplex, id: Int, bypassNum:Int) extends Ba
   outer.misc.module.io.csrio <> io.csrio
   io.issueToMou <> outer.misc.module.io.issueToMou
   io.writebackFromMou <> outer.misc.module.io.writebackFromMou
+
+  outer.misc.module.io.fdicallJumpExcpIO <> io.fdicallJumpExcpIO
 
   issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.alu, issueAlu.issue.ready, issueMisc.issue.ready)
   private val issueFuHit = outer.issueNode.in.head._2._2.exuConfigs.flatMap(_.fuConfigs).map(_.fuType === issueIn.issue.bits.uop.ctrl.fuType).reduce(_ | _)

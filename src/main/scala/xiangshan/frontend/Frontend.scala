@@ -24,7 +24,7 @@ import xs.utils._
 import xiangshan._
 import xiangshan.backend.execute.fu.csr.PFEvent
 import xiangshan.backend.execute.fu.fence.{FenceIBundle, SfenceBundle}
-import xiangshan.backend.execute.fu.{PMP, PMPChecker, PMPReqBundle}
+import xiangshan.backend.execute.fu.{PMP, PMPChecker, PMPReqBundle, FDITagger}
 import xiangshan.cache.mmu._
 import xiangshan.frontend.icache._
 import xs.utils.perf.HasPerfLogging
@@ -99,12 +99,26 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   pmp_req_vec(3) <> ifu.io.pmp.req
 
   for (i <- pmp_check.indices) {
-    pmp_check(i).apply(tlbCsr.priv.imode, tlbCsr.satp.mode, pmp.io.pmp, pmp.io.pma, pmp_req_vec(i))
+    pmp_check(i).apply( tlbCsr.priv.imode, 
+                        tlbCsr.satp.mode, 
+                        pmp.io.pmp, 
+                        pmp.io.pma, 
+                        pmp_req_vec(i),
+                        pmp.io.spmp, 
+                        tlbCsr.priv.sum, 
+                        csrCtrl.spmp_enable)
   }
   icache.io.pmp(0).resp <> pmp_check(0).resp
   icache.io.pmp(1).resp <> pmp_check(1).resp
   icache.io.pmp(2).resp <> pmp_check(2).resp
   ifu.io.pmp.resp <> pmp_check(3).resp
+
+  // FDITagger
+  val fdiTagger: FDITagger = Module(new FDITagger())
+  fdiTagger.io.distribute_csr := csrCtrl.distribute_csr
+  fdiTagger.io.privMode := tlbCsr.priv.imode
+  fdiTagger.io.addr := ifu.io.fdi.startAddr
+  ifu.io.fdi.notTrusted := fdiTagger.io.notTrusted
 
   // val tlb_req_arb     = Module(new Arbiter(new TlbReq, 2))
   // tlb_req_arb.io.in(0) <> ifu.io.iTLBInter.req

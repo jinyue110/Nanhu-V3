@@ -27,6 +27,7 @@ import utils._
 import xiangshan._
 import xiangshan.backend.execute.exu.{ExuConfig, ExuInputNode, ExuOutputMultiSinkNode, ExuOutputNode, ExuType}
 import xiangshan.backend.execute.exucx.ExuComplexIssueNode
+import xiangshan.backend.execute.fu._
 import xiangshan.backend.execute.fu.csr.CSRConst.ModeS
 import xiangshan.backend.execute.fu.{FuConfigs, FunctionUnit, PMP, PMPChecker, PMPCheckerv2}
 import xiangshan.backend.execute.fu.csr.{PFEvent, SdtrigExt}
@@ -496,6 +497,21 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     dtlb_st.foreach(_.ptw.resp.valid := ptw_resp_v && Cat(ptw_resp_next.vector.drop(ld_tlb_ports)).orR)
   }
 
+  // fdi memory access check
+  val fdi = Module(new MemFDI())
+  fdi.io.distribute_csr <> csrCtrl.distribute_csr
+
+  private val fdiCheckers = Seq.fill(exuParameters.LduCnt + exuParameters.StuCnt)(Module(new FDIMemChecker()))
+  private val fdiCheckersIOs = fdiCheckers.map(_.io)
+
+  val memFDIReq  = storeUnits.map(_.io.fdiReq) ++ loadUnits.map(_.io.fdiReq)
+  val memFDIResp = storeUnits.map(_.io.fdiResp) ++ loadUnits.map(_.io.fdiResp)
+
+  for( (dchecker,index) <- fdiCheckersIOs.zipWithIndex){
+     dchecker.resource := fdi.io.entries
+     dchecker.req := memFDIReq(index)
+     memFDIResp(index) := dchecker.resp
+  }
 
   // pmp
   val pmp = Module(new PMP())
@@ -506,7 +522,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   ))
   val tlbcsr_pmp = tlbcsr_dup.drop(2).map(RegNext(_))
   for (((p,d),i) <- (pmp_check zip dtlb_pmps).zipWithIndex) {
-    p.apply(tlbcsr_pmp(i).priv.dmode, tlbcsr_pmp(i).satp.mode, pmp.io.pmp, pmp.io.pma, d)
+    p.apply(tlbcsr_pmp(i).priv.dmode, tlbcsr_pmp(i).satp.mode, pmp.io.pmp, pmp.io.pma, d,
+            pmp.io.spmp, tlbcsr_pmp(i).priv.sum, csrCtrl.spmp_enable)
     require(p.req.bits.size.getWidth == d.bits.size.getWidth)
   }
   val pmp_check_ptw = Module(new PMPCheckerv2(lgMaxSize = 3, sameCycle = false, leaveHitMux = true))
@@ -514,7 +531,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     ModeS,
     8.U,
     pmp.io.pmp, pmp.io.pma, io.ptw.resp.valid,
-    Cat(io.ptw.resp.bits.data.entry.ppn, 0.U(12.W)).asUInt
+    Cat(io.ptw.resp.bits.data.entry.ppn, 0.U(12.W)).asUInt,
+    pmp.io.spmp, tlbcsr_pmp.last.priv.sum, csrCtrl.spmp_enable
   )
   dtlb.foreach(_.ptw_replenish := pmp_check_ptw.io.resp)
 

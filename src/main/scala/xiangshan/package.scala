@@ -166,7 +166,8 @@ package object xiangshan {
   }
 
   object ExceptionVec {
-    def apply() = Vec(16, Bool())
+    // 16 RV exception + 3 FDI excepiton
+    def apply() = Vec(16 + 3, Bool())
   }
 
   object PMAMode {
@@ -326,7 +327,19 @@ package object xiangshan {
     def loadPageFault       = 13
     // def singleStep          = 14
     def storePageFault      = 15
+
+    //exception 16-23 is reserve
+
+    def FDIExcOffset = 8
+    //  FDI excetption       number    offset
+    def fdiUJumpFault = 24 - FDIExcOffset
+    def fdiULoadAccessFault = 25 - FDIExcOffset
+    def fdiUStoreAccessFault = 26 - FDIExcOffset
+
+
     def priorities = Seq(
+      // FDI Instruction fault actually belongs to the last branch instr
+      fdiUJumpFault,
       breakPoint, // TODO: different BP has different priority
       instrPageFault,
       instrAccessFault,
@@ -338,7 +351,9 @@ package object xiangshan {
       storePageFault,
       loadPageFault,
       storeAccessFault,
-      loadAccessFault
+      loadAccessFault,
+      fdiULoadAccessFault,
+      fdiUStoreAccessFault
     )
     def all = priorities.distinct.sorted
     def frontendSet = Seq(
@@ -347,12 +362,18 @@ package object xiangshan {
       illegalInstr,
       instrPageFault
     )
+    def fdiSet = Seq(
+      fdiUJumpFault,
+      fdiULoadAccessFault,
+      fdiUStoreAccessFault
+    )
     def partialSelect(vec: Vec[Bool], select: Seq[Int]): Vec[Bool] = {
       val new_vec = Wire(ExceptionVec())
       new_vec.foreach(_ := false.B)
       select.foreach(i => new_vec(i) := vec(i))
       new_vec
     }
+    def selectFDI(vec:Vec[Bool]): Vec[Bool] = partialSelect(vec, fdiSet)
     def selectFrontend(vec: Vec[Bool]): Vec[Bool] = partialSelect(vec, frontendSet)
     def selectAll(vec: Vec[Bool]): Vec[Bool] = partialSelect(vec, ExceptionNO.all)
     def selectByFu(vec:Vec[Bool], fuConfig: FuConfig): Vec[Bool] =

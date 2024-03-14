@@ -4,7 +4,6 @@ import chisel3._
 import chisel3.util._
 
 trait HasCSRConst {
-
   // Unprivileged Floating-Point CSRs
   val Fflags        = 0x001
   val Frm           = 0x002
@@ -53,10 +52,18 @@ trait HasCSRConst {
   val Hpmcounter30  = 0xC1E
   val Hpmcounter31  = 0xC1F
 
+  // User FDI registers
+  val FDILibCfgBase = 0x880
+  val FDILibBoundBase = 0x890
+
+  val Fdimaincall  = 0x8b0
+  val Fdireturnpc  = 0x8b1
+
+  val FDIJmpCfgBase = 0x8c8
+  val FDIJmpBoundBase = 0x8c0
+
   // Supervisor Trap Setup
   val Sstatus       = 0x100
-  val Sedeleg       = 0x102
-  val Sideleg       = 0x103
   val Sie           = 0x104
   val Stvec         = 0x105
   val Scounteren    = 0x106
@@ -82,6 +89,16 @@ trait HasCSRConst {
 
   val Sdsid         = 0x9C0
   val Sfetchctl     = 0x9E0
+
+  // Supervisor FDI Settings (for User protection)
+  val Fdiumaincfg = 0x9E0
+  val Fdiumainboundlo = 0x9E2
+  val Fdiumainboundhi = 0x9E3
+  
+  // SPMP
+  val SpmpSwitch    = 0x19F
+  val SpmpcfgBase   = 0x1A0
+  val SpmpaddrBase  = 0x1B0
 
   // Machine Information Registers
   val Mvendorid     = 0xF11

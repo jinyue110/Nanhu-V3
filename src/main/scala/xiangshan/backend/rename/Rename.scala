@@ -155,6 +155,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents with Ha
   for (i <- 0 until RenameWidth) {
     uops(i).cf := io.in(i).bits.cf
     uops(i).ctrl := io.in(i).bits.ctrl
+    uops(i).fdiUntrusted := io.in(i).bits.cf.fdiUntrusted
 
     // update cf according to ssit result
     uops(i).cf.storeSetHit := io.ssit(i).valid
@@ -405,7 +406,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents with Ha
   val is_fused_lui_load = io.out.map(o => o.fire && o.bits.ctrl.fuType === FuType.ldu && o.bits.ctrl.srcType(0) === SrcType.imm)
   XSPerfAccumulate("fused_lui_load_instr_count", PopCount(is_fused_lui_load))
 
-  
+
   val renamePerf = Seq(
     ("rename_in                  ", PopCount(io.in.map(_.valid & io.in(0).ready ))                                                               ),
     ("rename_waitinstr           ", PopCount((0 until RenameWidth).map(i => io.in(i).valid && !io.in(i).ready))                                  ),

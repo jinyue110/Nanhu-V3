@@ -20,6 +20,7 @@ import chisel3._
 import chisel3.util._
 import xiangshan._
 import xiangshan.frontend.icache._
+import xiangshan.backend.execute.fu._
 import utils._
 import xs.utils._
 import scala.{Tuple2 => &}
@@ -121,6 +122,7 @@ class FetchToIBuffer(implicit p: Parameters) extends XSBundle {
   val crossPageIPFFix = Vec(PredictWidth, Bool())
   val triggered    = Vec(PredictWidth, new TriggerCf)
   val mmioFetch = Bool()
+  val fdiUntrusted = Vec(PredictWidth, Bool())
 }
 
 // class BitWiseUInt(val width: Int, val init: UInt) extends Module {

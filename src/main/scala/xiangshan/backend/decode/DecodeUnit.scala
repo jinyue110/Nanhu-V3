@@ -390,6 +390,15 @@ object BDecode extends DecodeConstants{
 }
 
 /**
+  * FDI custom instructions
+  */
+object FDIDecode extends DecodeConstants {
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    FDICALL_JR-> List(SrcType.reg,  SrcType.imm, SrcType.X,   FuType.jmp, JumpOpType.fdicall_jr,  Y, N, N, N, Y, Y, N, N, VstartType.hold, SelImm.IMM_I)
+  )
+}
+
+/**
  * FP Divide SquareRoot Constants
  */
 object FDivSqrtDecode extends DecodeConstants {
@@ -1036,7 +1045,8 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     BDecode.table ++
     CBODecode.table ++
     VectorConfDecode.table ++
-    vdecode_table
+    vdecode_table ++
+    FDIDecode.table
 
 //    ++ SvinvalDecode.table
   // assertion for LUI: only LUI should be assigned `selImm === SelImm.IMM_U && fuType === FuType.alu`

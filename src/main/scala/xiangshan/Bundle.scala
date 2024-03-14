@@ -117,6 +117,8 @@ class CtrlFlow(implicit p: Parameters) extends XSBundle {
   val ssid = UInt(SSIDWidth.W)
   val ftqPtr = new FtqPtr
   val ftqOffset = UInt(log2Up(PredictWidth).W)
+  // needs to be checked by FDI
+  val fdiUntrusted = Bool()
 
   //vector
 
@@ -229,6 +231,9 @@ class MicroOp(implicit p: Parameters) extends CfCtrl {
   val vtypeRegIdx = UInt(log2Ceil(VIVtypeRegsNum).W)
   val segIdx = UInt(log2Ceil(VLEN).W)
   val elmIdx = UInt(3.W)
+
+  //FDI
+  val fdiUntrusted = Bool()
 
   def clearExceptions(
     exceptionBits: Seq[Int] = Seq(),
@@ -526,6 +531,8 @@ class CustomCSRCtrlIO(implicit p: Parameters) extends XSBundle {
     val fp = Output(Bool())
     val vec = Output(Bool())
   }
+  // SPMP
+  val spmp_enable = Output(Bool())
 }
 
 class DistributedCSRIO(implicit p: Parameters) extends XSBundle {
