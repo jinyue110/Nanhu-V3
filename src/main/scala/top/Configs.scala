@@ -374,14 +374,15 @@ class NanHuGCoreConfig(n: Int = 1) extends Config(
         IBufSize = 32,
         StoreBufferSize = 4,
         StoreBufferThreshold = 3,
-        dpParams = DispatchParameters(
-          IntDqSize = 12,
-          FpDqSize = 12,
-          LsDqSize = 12,
-          IntDqDeqWidth = 4,
-          FpDqDeqWidth = 4,
-          LsDqDeqWidth = 4
-        ),
+        
+        // dpParams = DispatchParameters(
+        //   IntDqSize = 12,
+        //   FpDqSize = 12,
+        //   LsDqSize = 12,
+        //   IntDqDeqWidth = 4,
+        //   FpDqDeqWidth = 4,
+        //   LsDqDeqWidth = 4
+        // ),
         exuParameters = ExuParameters(
           JmpCnt = 1,
           AluCnt = 2,
