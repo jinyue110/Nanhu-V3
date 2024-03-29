@@ -68,7 +68,7 @@ class NanHuGCoreConfig(n: Int = 1) extends Config(
         DecodeWidth = 4,
         RenameWidth = 4,
         FetchWidth = 8,
-        //no IssQueSize
+        // IssQueSize = 8,
         NRPhyRegs = 64,
         LoadQueueSize = 32,
         LoadQueueNWriteBanks = 4,
@@ -79,33 +79,44 @@ class NanHuGCoreConfig(n: Int = 1) extends Config(
         IBufSize = 32,
         StoreBufferSize = 4,
         StoreBufferThreshold = 3,
-        //no dpParams
-      //   exuParameters = ExuParameters(//no MduCnt FmiscCnt FmiscDivSqrtCnt(DivSqrtCnt?)  
-      //     JmpCnt = 1,
-      //     AluCnt = 2,
-      //     MulCnt = 0,
-      //     MduCnt = 1,
-      //     //FpuCnt = 2,
-      //     FmaCnt = 1,
-      //     DivSqrtCnt = 0, //replace FmiscDivSqrtCnt
-      //     LduCnt = 2,
-      //     StuCnt = 2
-      //     //LsuCnt = 2,
-      // ),
-      //prefetcher = None,
-      EnableSC = false,
-      EnableLoop = false,
-      FtbSize = 1024,
-      UbtbSize = 128,
-      // 4-way 16KB DCache 
-      icacheParameters = ICacheParameters(
-        nSets = 64,
-        nWays = 4,
-        tagECC = None,
-        dataECC = None,
-        replacer = Some("setplru"),
-      ),
-      itlbParameters = TLBParameters(
+        // dpParams = DispatchParameters(
+        //   IntDqSize = 12,
+        //   FpDqSize = 12,
+        //   LsDqSize = 12,
+        //   IntDqDeqWidth = 4,
+        //   FpDqDeqWidth = 4,
+        //   LsDqDeqWidth = 4
+        // ),
+        // exuParameters = ExuParameters(
+        //   JmpCnt = 1,
+        //   AluCnt = 2,
+        //   MulCnt = 0,
+        //   MduCnt = 1,
+        //   FmacCnt = 1,
+        //   FmiscCnt = 1,
+        //   FmiscDivSqrtCnt = 0,
+        //   LduCnt = 2,
+        //   StuCnt = 2
+        // ),
+        //prefetcher = None,
+        EnableSC = false,
+        EnableLoop = false,
+        FtbSize = 1024,
+        UbtbSize = 128,
+        // 4-way 16KB DCache        
+        icacheParameters = ICacheParameters(
+          nSets = 64, 
+          nWays = 4,
+          tagECC = None,
+          dataECC = None,
+          replacer = Some("setplru"),
+          nMissEntries = 2,
+          nReleaseEntries = 1,
+          nProbeEntries = 2,
+          nPrefetchEntries = 2,
+          hasPrefetch = false
+        ),
+        itlbParameters = TLBParameters(
           name = "itlb",
           fetchi = true,
           useDmode = false,
@@ -154,9 +165,9 @@ class NanHuGCoreConfig(n: Int = 1) extends Config(
           l3nWays = 8,
           spSize = 2,
         )
+      )
     )
-  )}
- )
+  })
 )
 
 // Cache Hierarchy Config: 
