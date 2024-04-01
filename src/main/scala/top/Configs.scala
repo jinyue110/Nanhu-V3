@@ -377,17 +377,22 @@ class NanHuGCoreConfig(n: Int = 1) extends Config(
         //   FpDqDeqWidth = 4,
         //   LsDqDeqWidth = 4
         // ),
-        // exuParameters = ExuParameters(
-        //   JmpCnt = 1,
-        //   AluCnt = 2,
-        //   MulCnt = 0,
-        //   MduCnt = 1,
-        //   FmacCnt = 1,
-        //   FmiscCnt = 1,
-        //   FmiscDivSqrtCnt = 0,
-        //   LduCnt = 2,
-        //   StuCnt = 2
-        // ),
+        exuParameters = ExuParameters(
+          JmpCnt = 1,
+          //AluCnt = 2,
+          //AluMiscCnt = 1,
+          //AluMulCnt = 1,//MulCnt = 0,
+          //AluDivCnt = 1,
+          //MduCnt = 1,
+
+          // FmaCnt = 2,//FmacCnt = 1,
+          // FmaMiscCnt = 1,
+          // FmaDivCnt = 1,//FmiscCnt = 1,
+          //FmiscDivSqrtCnt = 0,
+
+          LduCnt = 2,
+          StuCnt = 2
+        ),
         //prefetcher = None,
         EnableSC = false,
         EnableLoop = false,
