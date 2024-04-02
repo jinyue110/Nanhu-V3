@@ -472,7 +472,7 @@ class NanHuGCacheConfig extends Config(
     //++ new WithNKBL2(256, inclusive = false, banks = 2, ways = 8, alwaysReleaseData = true)
     //++ new WithNKBL1D(64)
 
-   new WithNKBL3(4 * 256, inclusive = false, banks = 4, ways = 8)
+   new WithNKBL3(4 * 256, inclusive = false, banks = 4, ways = 4)
     ++ new WithNKBL2(256,inclusive = false, banks = 4, alwaysReleaseData = true) 
     ++ new WithNKBL1D(32) 
 )
