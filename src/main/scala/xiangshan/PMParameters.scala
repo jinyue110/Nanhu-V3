@@ -29,6 +29,7 @@ case class PMParameters
   NumPMP: Int = 16,
   NumPMA: Int = 16,
   NumSPMP: Int = 16,
+  spmpEnbale: Boolean = false,
 
   PlatformGrain: Int = log2Ceil(4*1024), // 4KB, a normal page
   mmpma: MMPMAConfig = MMPMAConfig(
@@ -49,6 +50,7 @@ trait HasPMParameters {
   val NumPMP = pmParams.NumPMP
   val NumPMA = pmParams.NumPMA
   val NumSPMP = pmParams.NumSPMP
+  val spmpEnbale = pmParams.spmpEnbale
 
   val PlatformGrain = pmParams.PlatformGrain
   val mmpma = pmParams.mmpma
