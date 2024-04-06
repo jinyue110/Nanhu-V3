@@ -568,7 +568,7 @@ class PMPChecker
   sameCycle: Boolean = false,
   leaveHitMux: Boolean = false,
   pmpUsed: Boolean = true,
-  spmpUsed: Boolean = true
+  // spmpEnbale: Boolean = true
 )(implicit p: Parameters) extends PMPModule
   with PMPCheckMethod
   with PMACheckMethod
@@ -588,7 +588,7 @@ class PMPChecker
   val resp_spmp = spmp_check(req.cmd, res_spmp.cfg)
 
   val presp = if (pmpUsed) (resp_pmp | resp_pma) else resp_pma
-  val sresp = if (spmpUsed) (presp | resp_spmp) else presp
+  val sresp = if (spmpEnbale) (presp | resp_spmp) else presp
   val resp = Mux(io.check_env.spmp_enable, sresp, presp)
 
   if (sameCycle || leaveHitMux) {
@@ -605,7 +605,7 @@ class PMPCheckerv2
   lgMaxSize: Int = 3,
   sameCycle: Boolean = false,
   leaveHitMux: Boolean = false,
-  spmpUsed: Boolean = true
+  // spmpEnbale: Boolean = true
 )(implicit p: Parameters) extends PMPModule
   with PMPCheckMethod
   with PMACheckMethod
@@ -621,7 +621,7 @@ class PMPCheckerv2
   val res_spmp = spmp_match_res(leaveHitMux, io.req.valid)(req.addr, req.size, io.check_env.spmp, io.check_env.mode, lgMaxSize, io.check_env.sum)
 
   val presp = and(res_pmp, res_pma)
-  val sresp = and(res_pmp, res_pma, if (spmpUsed) res_spmp else res_pmp)
+  val sresp = and(res_pmp, res_pma, if (spmpEnbale) res_spmp else res_pmp)
 
   val resp = Mux(io.check_env.spmp_enable, sresp, presp)
 
