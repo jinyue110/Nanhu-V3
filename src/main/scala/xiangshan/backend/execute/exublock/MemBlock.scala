@@ -498,20 +498,26 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   }
 
   // fdi memory access check
-  val fdi = Module(new MemFDI())
-  fdi.io.distribute_csr <> csrCtrl.distribute_csr
+  if(HasFDI){
+   val fdi = Module(new MemFDI())
+   fdi.io.distribute_csr <> csrCtrl.distribute_csr
 
-  private val fdiCheckers = Seq.fill(exuParameters.LduCnt + exuParameters.StuCnt)(Module(new FDIMemChecker()))
-  private val fdiCheckersIOs = fdiCheckers.map(_.io)
+   val fdiCheckers = Seq.fill(exuParameters.LduCnt + exuParameters.StuCnt)(Module(new FDIMemChecker()))
+   val fdiCheckersIOs = fdiCheckers.map(_.io)
 
-  val memFDIReq  = storeUnits.map(_.io.fdiReq) ++ loadUnits.map(_.io.fdiReq)
-  val memFDIResp = storeUnits.map(_.io.fdiResp) ++ loadUnits.map(_.io.fdiResp)
+   val memFDIReq  = storeUnits.map(_.io.fdiReq) ++ loadUnits.map(_.io.fdiReq)
+   val memFDIResp = storeUnits.map(_.io.fdiResp) ++ loadUnits.map(_.io.fdiResp)
 
-  for( (dchecker,index) <- fdiCheckersIOs.zipWithIndex){
-     dchecker.resource := fdi.io.entries
-     dchecker.req := memFDIReq(index)
-     memFDIResp(index) := dchecker.resp
+   for( (dchecker,index) <- fdiCheckersIOs.zipWithIndex){
+      dchecker.resource := fdi.io.entries
+      dchecker.req := memFDIReq(index)
+      memFDIResp(index) := dchecker.resp
+   }
+  } else {
+    val memFDIResp = storeUnits.map(_.io.fdiResp) ++ loadUnits.map(_.io.fdiResp)
+    memFDIResp.map(_.fdi_fault := FDICheckFault.noFDIFault)
   }
+
 
   // pmp
   val pmp = Module(new PMP())

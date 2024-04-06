@@ -47,7 +47,7 @@ case class XSCoreParameters
   XLEN: Int = 64,
   HasMExtension: Boolean = true,
   HasCExtension: Boolean = true,
-  HasFDI: Boolean = true,
+  HasFDI: Boolean = false,
   HasDiv: Boolean = true,
   HasICache: Boolean = true,
   HasDCache: Boolean = true,
