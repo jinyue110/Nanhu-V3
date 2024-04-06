@@ -1,0 +1,251 @@
+19c19
+< import chipsalliance.rocketchip.config.{Field, Parameters}
+---
+> import org.chipsalliance.cde.config.{Field, Parameters}
+22,23c22
+< import xiangshan.backend.exu._
+< import xiangshan.backend.dispatch.DispatchParameters
+---
+> import xiangshan.backend.execute.exublock.ExuParameters
+26c25
+< import xiangshan.frontend.{BasePredictor, BranchPredictionResp, FTB, FakePredictor, RAS, Tage, ITTage, Tage_SC, FauFTB}
+---
+> import xiangshan.frontend.{BasePredictor, BranchPredictionResp, FTB, FakePredictor, FauFTB, ITTage, RAS, Tage, Tage_SC}
+31a31
+> import coupledL2._
+35c35,37
+< import scala.math.min
+---
+> import scala.math.{max, min}
+> import xiangshan.vector.VectorParameters
+> import xs.utils.perf.DebugOptionsKey
+48,49d49
+<   HasNExtension: Boolean = true,
+<   HasDasics: Boolean = true,
+75a76,78
+>   hasMbist:Boolean = true,
+>   hasShareBus:Boolean = false,
+>   bootAddress:Long = 0x10000000L,
+101,104c104,107
+<   numBr: Int = 2,
+<   branchPredictor: Function2[BranchPredictionResp, Parameters, Tuple2[Seq[BasePredictor], BranchPredictionResp]] =
+<     ((resp_in: BranchPredictionResp, p: Parameters) => {
+<       val ftb = Module(new FTB()(p))
+---
+>   numBr: Int = 1,
+>   branchPredictor: Function3[BranchPredictionResp, Parameters, String, Tuple2[Seq[BasePredictor], BranchPredictionResp]] =
+>     ((resp_in: BranchPredictionResp, p: Parameters, parentName:String) => {
+>       val ftb = Module(new FTB(parentName = parentName + "ftb_")(p))
+107c110
+<       val tage = Module(new Tage_SC()(p))
+---
+>       val tage = Module(new Tage_SC(parentName = parentName + "tage_")(p))
+109c112
+<       val ittage = Module(new ITTage()(p))
+---
+>       val ittage = Module(new ITTage(parentName = parentName + "ittage_")(p))
+127,128c130,131
+<   DecodeWidth: Int = 6,
+<   RenameWidth: Int = 6,
+---
+>   DecodeWidth: Int = 4,
+>   RenameWidth: Int = 4,
+132,133c135
+<   IssQueSize: Int = 16,
+<   NRPhyRegs: Int = 192,
+---
+>   NRPhyRegs: Int = 128,
+138,158c140,149
+<   RobSize: Int = 256,
+<   dpParams: DispatchParameters = DispatchParameters(
+<     IntDqSize = 16,
+<     FpDqSize = 16,
+<     LsDqSize = 16,
+<     IntDqDeqWidth = 4,
+<     FpDqDeqWidth = 4,
+<     LsDqDeqWidth = 4
+<   ),
+<   exuParameters: ExuParameters = ExuParameters(
+<     JmpCnt = 1,
+<     AluCnt = 4,
+<     MulCnt = 0,
+<     MduCnt = 2,
+<     FmacCnt = 4,
+<     FmiscCnt = 2,
+<     FmiscDivSqrtCnt = 0,
+<     LduCnt = 2,
+<     StuCnt = 2
+<   ),
+<   prefetcher: Option[PrefetcherParams] = Some(SMSParams()),
+---
+>   RobSize: Int = 192,
+>   intRsDepth:Int = 32,
+>   fpRsDepth:Int = 32,
+>   memRsDepth:Int = 48,
+>   rsBankNum:Int = 4,
+>   exuParameters: ExuParameters = ExuParameters(),
+>   // TODO: replace Coupled L2
+>   // prefetcher: Option[PrefetcherParams] = Some(SMSParams()),
+>   prefetcher: Option[PrefetcherParams] = None,
+>   Csr_PfCtrlBits: Int = 16,
+161a153
+>   EnsbufferWidth: Int = 2,
+163c155
+<   EnableLoadToLoadForward: Boolean = true,
+---
+>   EnableLoadToLoadForward: Boolean = false,
+170a163
+>   UseOneDtlb: Boolean = false,
+183,184c176,177
+<   ldtlbParameters: TLBParameters = TLBParameters(
+<     name = "ldtlb",
+---
+>   OnedtlbParams: TLBParameters = TLBParameters(
+>     name = "tlb_ld_st",
+194a188,199
+>   ldtlbParameters: TLBParameters = TLBParameters(
+>     name = "ldtlb",
+>     normalNSets = 128,
+>     normalNWays = 1,
+>     normalAssociative = "sa",
+>     normalReplacer = Some("setplru"),
+>     superNWays = 8,
+>     normalAsVictim = true,
+>     outReplace = false,
+>     partialStaticPMP = true,
+>     saveLevel = true
+>   ),
+197c202
+<     normalNSets = 64,
+---
+>     normalNSets = 128,
+201c206
+<     superNWays = 16,
+---
+>     superNWays = 8,
+223c228
+<     hasPrefetch = true,
+---
+>     hasPrefetch = false,
+233c238
+<   L2CacheParamsOpt: Option[HCCacheParameters] = Some(HCCacheParameters(
+---
+>   L2CacheParamsOpt: Option[L2Param] = Some(L2Param(
+235c240
+<     level = 2,
+---
+>     // level = 2,
+237,238c242,244
+<     sets = 1024, // default 512KB L2
+<     prefetch = Some(huancun.prefetch.PrefetchReceiverParams())
+---
+>     sets = 1024,// default 512KB L2
+>     // hasShareBus = true,
+>     prefetch = Some(coupledL2.prefetch.PrefetchReceiverParams())
+242,255c248
+<   softPTW: Boolean = false // dpi-c debug only
+< ){
+<   val allHistLens = SCHistLens ++ ITTageTableInfos.map(_._2) ++ TageTableInfos.map(_._2) :+ UbtbGHRLength
+<   val HistoryLength = allHistLens.max + numBr * FtqSize + 9 // 256 for the predictor configs now
+< 
+<   val loadExuConfigs = Seq.fill(exuParameters.LduCnt)(LdExeUnitCfg)
+<   val storeExuConfigs = Seq.fill(exuParameters.StuCnt)(StaExeUnitCfg) ++ Seq.fill(exuParameters.StuCnt)(StdExeUnitCfg)
+< 
+<   val intExuConfigs = (Seq.fill(exuParameters.AluCnt)(AluExeUnitCfg) ++
+<     Seq.fill(exuParameters.MduCnt)(MulDivExeUnitCfg) :+ JumpCSRExeUnitCfg)
+< 
+<   val fpExuConfigs =
+<     Seq.fill(exuParameters.FmacCnt)(FmacExeUnitCfg) ++
+<       Seq.fill(exuParameters.FmiscCnt)(FmiscExeUnitCfg)
+---
+>   softPTW: Boolean = false, // dpi-c debug only
+257c250,256
+<   val exuConfigs: Seq[ExuConfig] = intExuConfigs ++ fpExuConfigs ++ loadExuConfigs ++ storeExuConfigs
+---
+>   //vector
+>   hasVector: Boolean = true,
+>   vectorParameters: VectorParameters = VectorParameters()
+> ){
+>   val allHistLens: Seq[Int] = SCHistLens ++ ITTageTableInfos.map(_._2) ++ TageTableInfos.map(_._2) :+ UbtbGHRLength
+>   val HistoryLength: Int = allHistLens.max + numBr * FtqSize + 9 // 256 for the predictor configs now
+>   val maxRsEntryNum: Int = Seq(fpRsDepth, intRsDepth, memRsDepth).max
+260,271d258
+< case object DebugOptionsKey extends Field[DebugOptions]
+< 
+< case class DebugOptions
+< (
+<   FPGAPlatform: Boolean = false,
+<   EnableDifftest: Boolean = false,
+<   AlwaysBasicDiff: Boolean = true,
+<   EnableDebug: Boolean = false,
+<   EnablePerfDebug: Boolean = true,
+<   UseDRAMSim: Boolean = false
+< )
+< 
+288,289d274
+<   val HasNExtension = coreParams.HasNExtension
+<   val HasDasics = coreParams.HasDasics
+317a303
+>   val bootAddress = coreParams.bootAddress
+319,320c305,306
+<   def getBPDComponents(resp_in: BranchPredictionResp, p: Parameters) = {
+<     coreParams.branchPredictor(resp_in, p)
+---
+>   def getBPDComponents(resp_in: BranchPredictionResp, p: Parameters, parentName:String = "Unknown") = {
+>     coreParams.branchPredictor(resp_in, p, parentName)
+357,358d342
+< 
+< 
+367d350
+<   val IssQueSize = coreParams.IssQueSize
+370c353
+<   val PhyRegIdxWidth = log2Up(NRPhyRegs)
+---
+> 
+372c355
+<   val IntRefCounterWidth = log2Ceil(RobSize)
+---
+>   val IntRefCounterWidth = log2Ceil(RobSize + 1)
+377d359
+<   val dpParams = coreParams.dpParams
+379,383d360
+<   val NRMemReadPorts = exuParameters.LduCnt + 2 * exuParameters.StuCnt
+<   val NRIntReadPorts = 2 * exuParameters.AluCnt + NRMemReadPorts
+<   val NRIntWritePorts = exuParameters.AluCnt + exuParameters.MduCnt + exuParameters.LduCnt
+<   val NRFpReadPorts = 3 * exuParameters.FmacCnt + exuParameters.StuCnt
+<   val NRFpWritePorts = exuParameters.FpExuCnt + exuParameters.LduCnt
+387a365
+>   val EnsbufferWidth = coreParams.EnsbufferWidth
+405,409c383,385
+< 
+<   val NumRs = (exuParameters.JmpCnt+1)/2 + (exuParameters.AluCnt+1)/2 + (exuParameters.MulCnt+1)/2 +
+<               (exuParameters.MduCnt+1)/2 + (exuParameters.FmacCnt+1)/2 +  + (exuParameters.FmiscCnt+1)/2 +
+<               (exuParameters.FmiscDivSqrtCnt+1)/2 + (exuParameters.LduCnt+1)/2 +
+<               ((exuParameters.StuCnt+1)/2) + ((exuParameters.StuCnt+1)/2)
+---
+>   val UseOneDtlb = coreParams.UseOneDtlb
+>   val OnedtlbParams = coreParams.OnedtlbParams
+>   val Csr_PfCtrlBits = coreParams.Csr_PfCtrlBits
+416a393,397
+>   val hasVector = coreParams.hasVector
+>   val vectorParameters = coreParams.vectorParameters
+>   
+>   val PhyRegIdxWidth = max(log2Up(NRPhyRegs), log2Up(vectorParameters.vPhyRegIdxWidth))
+> 
+440,445c421
+<   val loadExuConfigs = coreParams.loadExuConfigs
+<   val storeExuConfigs = coreParams.storeExuConfigs
+< 
+<   val intExuConfigs = coreParams.intExuConfigs
+< 
+<   val fpExuConfigs = coreParams.fpExuConfigs
+---
+>   val loadUnitNum = coreParams.exuParameters.LduCnt
+447c423
+<   val exuConfigs = coreParams.exuConfigs
+---
+>   val LpvLength = 5
+450d425
+<   val numPCntHc: Int = 25
+451a427
+>   val numPCntL2: Int = coreParams.L2CacheParamsOpt.get.getPCntAll
