@@ -40,7 +40,8 @@ class JumpDataModule(implicit p: Parameters) extends XSModule {
 
   val isJalr = JumpOpType.jumpOpIsJalr(func)
   val isAuipc = JumpOpType.jumpOpIsAuipc(func)
-  val isFDICall = JumpOpType.jumpOpIsFDIcall(func)
+
+  val isFDICall = if(HasFDI) JumpOpType.jumpOpIsFDIcall(func) else false.B
   val offset = SignExt(ParallelMux(Seq(
     (isJalr || isFDICall) -> ImmUnion.I.toImm32(immMin),
     isAuipc -> ImmUnion.U.toImm32(immMin),
@@ -108,14 +109,17 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
   io.out.bits.uop := io.in.bits.uop
   io.out.bits.data := jumpDataModule.io.result
 
-  // FDI jump modules
-  val fdi = Module(new JumpFDI)
-  fdi.io.distribute_csr  := fdicallDistributedCSR.delay()
+  if(HasFDI){
+    // FDI jump modules
+    val fdi = Module(new JumpFDI)
+    fdi.io.distribute_csr  := fdicallDistributedCSR.delay()
 
-  val fdiJumpChecker = Module(new FDIJumpChecker)
-  fdiJumpChecker.io.req.valid := io.in.valid && (JumpOpType.jumpOpIsJal(func) || JumpOpType.jumpOpIsJalr(func))  //only check jump (jal/jalr) instruction
-  fdiJumpChecker.io.connect(pc, redirectOut.cfiUpdate.target, isUntrusted, FDIOp.jump, fdi.io.control_flow)
+    val fdiJumpChecker = Module(new FDIJumpChecker)
+    fdiJumpChecker.io.req.valid := io.in.valid && (JumpOpType.jumpOpIsJal(func) || JumpOpType.jumpOpIsJalr(func))  //only check jump (jal/jalr) instruction
+    fdiJumpChecker.io.connect(pc, redirectOut.cfiUpdate.target, isUntrusted, FDIOp.jump, fdi.io.control_flow)
 
-  io.out.bits.uop.cf.exceptionVec(illegalInstr) := valid && JumpOpType.jumpOpIsFDIcall(func) && isUntrusted
-  io.out.bits.uop.cf.exceptionVec(fdiUJumpFault) := fdiJumpChecker.io.resp.fdi_fault === FDICheckFault.UJumpFDIFault
+    io.out.bits.uop.cf.exceptionVec(illegalInstr) := valid && JumpOpType.jumpOpIsFDIcall(func) && isUntrusted
+    io.out.bits.uop.cf.exceptionVec(fdiUJumpFault) := fdiJumpChecker.io.resp.fdi_fault === FDICheckFault.UJumpFDIFault
+  }
+  io.out.bits.uop.cf.exceptionVec(fdiUJumpFault) := false.B
 }
