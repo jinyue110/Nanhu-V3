@@ -114,11 +114,16 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   ifu.io.pmp.resp <> pmp_check(3).resp
 
   // FDITagger
-  val fdiTagger: FDITagger = Module(new FDITagger())
-  fdiTagger.io.distribute_csr := csrCtrl.distribute_csr
-  fdiTagger.io.privMode := tlbCsr.priv.imode
-  fdiTagger.io.addr := ifu.io.fdi.startAddr
-  ifu.io.fdi.notTrusted := fdiTagger.io.notTrusted
+  if(HasFDI){
+    val fdiTagger: FDITagger = Module(new FDITagger())
+    fdiTagger.io.distribute_csr := csrCtrl.distribute_csr
+    fdiTagger.io.privMode := tlbCsr.priv.imode
+    fdiTagger.io.addr := ifu.io.fdi.startAddr
+    ifu.io.fdi.notTrusted := fdiTagger.io.notTrusted  
+  } else {
+    ifu.io.fdi.notTrusted.map(_ := false.B)
+  }
+
 
   // val tlb_req_arb     = Module(new Arbiter(new TlbReq, 2))
   // tlb_req_arb.io.in(0) <> ifu.io.iTLBInter.req
