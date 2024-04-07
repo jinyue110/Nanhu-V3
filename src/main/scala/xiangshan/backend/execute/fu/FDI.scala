@@ -226,6 +226,7 @@ trait FDIMethod extends FDIConst { this: HasXSParameter =>
 class FDIMemIO(implicit p: Parameters) extends XSBundle with FDIConst {
   val distribute_csr: DistributedCSRIO = Flipped(new DistributedCSRIO())
   val entries: Vec[FDIEntry] = Output(Vec(NumFDIMemBounds, new FDIEntry))
+  val enableFDI: Bool = Output(Bool())
 }
 
 class FDIJumpIO(implicit p: Parameters) extends XSBundle with FDIConst {
@@ -245,16 +246,18 @@ class FDIRespBundle(implicit p: Parameters) extends XSBundle with FDIConst{
 }
 
 class FDIMemCheckerIO(implicit p: Parameters) extends XSBundle with FDIConst{
-  val resource = Flipped(Output(Vec(NumFDIMemBounds, new FDIEntry)))
-  val req = Flipped(Valid(new FDIReqBundle()))
-  val resp = new FDIRespBundle()
+  val resource  = Flipped(Output(Vec(NumFDIMemBounds, new FDIEntry)))
+  val enableFDI = Input(Bool())
+  val req       = Flipped(Valid(new FDIReqBundle()))
+  val resp      = new FDIRespBundle()
 
   //connect for every FDI request
-  def connect(addr:UInt, inUntrustedZone:Bool, operation: UInt, entries: Vec[FDIEntry]): Unit = {
+  def connect(addr:UInt, inUntrustedZone:Bool, operation: UInt, entries: Vec[FDIEntry], enableFDI: Bool): Unit = {
     this.req.bits.addr := addr
     this.req.bits.inUntrustedZone := inUntrustedZone
     this.req.bits.operation := operation
     this.resource := entries
+    this.enableFDI := enableFDI
   }
 }
 
@@ -296,12 +299,21 @@ class MemFDI(implicit p: Parameters) extends XSModule with FDIMethod with HasCSR
   private val fdi = Wire(Vec(NumFDIMemBounds, new FDIEntry))
   val mapping = FDIGenMemMapping(mem_init = FDIMemInit, memCfgBase = FDILibCfgBase, memBoundBase = FDILibBoundBase, memEntries = fdi)
 
+  private val fdi_umain_cfg = RegInit(0.U(XLEN.W))
+  private val mainCfg = Wire(new FDIMainCfg())
+  mainCfg.gen(fdi_umain_cfg)
+
+  val fdi_config_mapping = Map(
+    MaskedRegMap(Fdiumaincfg, fdi_umain_cfg, "h2".U(XLEN.W))
+  )
+
   val rdata: UInt = Wire(UInt(XLEN.W))
-  MaskedRegMap.generate(mapping, w.bits.addr, rdata, w.valid, w.bits.data)
+  MaskedRegMap.generate(mapping ++ fdi_config_mapping, w.bits.addr, rdata, w.valid, w.bits.data)
 
 
-  io.entries := fdi
-}
+  io.entries   := fdi
+  io.enableFDI := mainCfg.uEnable
+ }
 
 class JumpFDI(implicit p: Parameters) extends XSModule 
   with FDIMethod 
@@ -353,7 +365,7 @@ class JumpFDI(implicit p: Parameters) extends XSModule
                         (!isTrustedZone &&  targetInTrustedZone && (target === fdi_return_pc || target === fdi_main_call)) ||
                         targetInActiveZone
 
-  io.control_flow.check_result.control_flow_legal := legalJumpTarget
+  io.control_flow.check_result.control_flow_legal := !mainCfg.uEnable || legalJumpTarget
 
 }
 
@@ -399,13 +411,21 @@ class FDIMemChecker(implicit p: Parameters) extends XSModule
   val req = io.req
   val fdi_entries = io.resource
 
-  val fdi_mem_fault = RegNext(fdi_mem_check(req, fdi_entries), init = false.B)
-  
+  val fdi_mem_fault = RegInit(false.B)
+  val fdi_req_read  = RegInit(false.B)
+  val fdi_req_write = RegInit(false.B)
+
+  when(io.req.valid){
+    fdi_mem_fault := fdi_mem_check(req, fdi_entries)
+    fdi_req_read  := FDIOp.isRead(req.bits.operation)
+    fdi_req_write := FDIOp.isWrite(req.bits.operation)
+  }
+
   io.resp.fdi_fault := FDICheckFault.noFDIFault 
 
-  when(FDIOp.isRead(req.bits.operation) && fdi_mem_fault){
+  when(fdi_req_read && fdi_mem_fault && io.enableFDI){
     io.resp.fdi_fault := FDICheckFault.UReadDascisFault
-  }.elsewhen(FDIOp.isWrite(req.bits.operation) && fdi_mem_fault){
+  }.elsewhen(fdi_req_write && fdi_mem_fault && io.enableFDI){
     io.resp.fdi_fault := FDICheckFault.UWriteFDIFault
   }    
     
@@ -421,12 +441,13 @@ class FDIJumpChecker(implicit p: Parameters) extends XSModule
   val req = io.req
   val fdi_contro_flow = io.contro_flow
 
+  //fdi_jump_fault = req.valid && mainCfg.uEnable && !legalJumpTarget
   val fdi_jump_fault = req.valid && !fdi_contro_flow.check_result.control_flow_legal
 
-  fdi_contro_flow.under_check.valid := req.valid
-  fdi_contro_flow.under_check.bits.pc   := io.pc
+  fdi_contro_flow.under_check.valid                 := req.valid
+  fdi_contro_flow.under_check.bits.pc               := io.pc
   fdi_contro_flow.under_check.bits.pc_in_trust_zone := !io.req.bits.inUntrustedZone
-  fdi_contro_flow.under_check.bits.target := req.bits.addr
+  fdi_contro_flow.under_check.bits.target           := req.bits.addr
 
   //FDI jump bound checking
   io.resp.fdi_fault := FDICheckFault.noFDIFault 
@@ -434,7 +455,6 @@ class FDIJumpChecker(implicit p: Parameters) extends XSModule
     io.resp.fdi_fault := FDICheckFault.UJumpFDIFault
   }
 }
-
 
 class FDIMainCfg(implicit p: Parameters) extends XSBundle {
   val uEnable, sEnable = Bool()
@@ -514,16 +534,14 @@ class FDITagger(implicit p: Parameters) extends XSModule with HasCSRConst {
   val io: FDITaggerIO = IO(new FDITaggerIO())
 
   private val mainCfgReg = RegInit(UInt(XLEN.W), 0.U)
-  private val sMainBoundHi = RegInit(UInt(XLEN.W), 0.U)
-  private val sMainBoundLo = RegInit(UInt(XLEN.W), 0.U)
   private val fdi_umain_bound_hi = RegInit(UInt(XLEN.W), 0.U)
   private val fdi_umain_bound_lo = RegInit(UInt(XLEN.W), 0.U)
 
   private val mainCfg = Wire(new FDIMainCfg())
   mainCfg.gen(mainCfgReg)
   private val mainBound = Wire(new FDIMainBound())
-  private val boundLo = Mux(io.privMode === ModeU, fdi_umain_bound_lo, sMainBoundLo)
-  private val boundHi = Mux(io.privMode === ModeU, fdi_umain_bound_hi, sMainBoundHi)
+  private val boundLo = fdi_umain_bound_lo
+  private val boundHi = fdi_umain_bound_hi
   mainBound.gen(boundLo, boundHi)
   private val cmpTags = mainBound.getPcTags(io.addr)
   io.notTrusted := Mux(
