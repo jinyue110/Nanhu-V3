@@ -496,7 +496,7 @@ class FDIMainBound(implicit p: Parameters) extends XSBundle with FDIConst {
     val loBlockMask = (~maskGen << diffLoLSB)(numFDIBlocks, 0).asBools
     val loCloseMask =
       (VecInit(loBlockMask.map(Fill(instPerFDIBlock, _))).asUInt >> startOffset)(FetchWidth * 2 - 1, 0)
-    val hiBlockMask = (Cat(maskGen, ~maskGen) << diffHiLSB)(2 * numFDIBlocks + 1, numFDIBlocks + 1).asBools
+    val hiBlockMask = (~(Cat(~maskGen, maskGen) << diffHiLSB))(2 * numFDIBlocks + 1, numFDIBlocks + 1).asBools
     val hiCloseMask =
       (VecInit(hiBlockMask.map(Fill(instPerFDIBlock, _))).asUInt >> startOffset)(FetchWidth * 2 - 1, 0)
 
