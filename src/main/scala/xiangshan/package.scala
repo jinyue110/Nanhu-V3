@@ -337,9 +337,8 @@ package object xiangshan {
     def fdiUStoreAccessFault = 26 - FDIExcOffset
 
 
-    def priorities = Seq(
+    def prioritiesALL = Seq(
       // FDI Instruction fault actually belongs to the last branch instr
-      fdiUJumpFault,
       breakPoint, // TODO: different BP has different priority
       instrPageFault,
       instrAccessFault,
@@ -352,10 +351,26 @@ package object xiangshan {
       loadPageFault,
       storeAccessFault,
       loadAccessFault,
+      fdiUJumpFault,
       fdiULoadAccessFault,
       fdiUStoreAccessFault
     )
-    def all = priorities.distinct.sorted
+    def prioritiesRegular = Seq(
+      // FDI Instruction fault actually belongs to the last branch instr
+      breakPoint, // TODO: different BP has different priority
+      instrPageFault,
+      instrAccessFault,
+      illegalInstr,
+      instrAddrMisaligned,
+      ecallM, ecallS, ecallU,
+      storeAddrMisaligned,
+      loadAddrMisaligned,
+      storePageFault,
+      loadPageFault,
+      storeAccessFault,
+      loadAccessFault
+    )
+    def all = prioritiesALL.distinct.sorted
     def frontendSet = Seq(
       instrAddrMisaligned,
       instrAccessFault,

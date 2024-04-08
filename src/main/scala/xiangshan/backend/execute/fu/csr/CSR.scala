@@ -1166,7 +1166,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val hasExceptionVec = csrio.exception.bits.uop.cf.exceptionVec
   val regularExceptionVec = hasExceptionVec.take(16)
   val fdiExceptionVec = ExceptionNO.selectFDI(hasExceptionVec)
-  val regularExceptionNO = ExceptionNO.priorities.foldRight(0.U)((i: Int, sum: UInt) => Mux(hasExceptionVec(i), i.U, sum))
+  val regularExceptionNO = ExceptionNO.prioritiesRegular.foldRight(0.U)((i: Int, sum: UInt) => Mux(regularExceptionVec(i), i.U, sum))
   val fdiExceptionNo = ExceptionNO.fdiSet.foldRight(0.U)((i: Int, sum: UInt) => Mux(fdiExceptionVec(i), (i + FDIExcOffset).U, sum))
 
   val exceptionNO = Mux(hasSingleStep || hasTriggerFire, 3.U,
