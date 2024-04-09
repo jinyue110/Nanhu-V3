@@ -237,7 +237,7 @@ class SoCMisc()(implicit p: Parameters) extends BaseSoC
   private val l3_mem_pmu = BusPerfMonitor(enable = !debugOpts.FPGAPlatform)
 
   private val periSourceNode = TLRationalCrossingSource()
-  val periCx: MiscPeriComplex = LazyModule(new MiscPeriComplex(includeROT=true))
+  val periCx: MiscPeriComplex = LazyModule(new MiscPeriComplex(includeROT=false))
   periCx.sinkNode :*= periSourceNode :*= TLBuffer() :*= peripheralXbar
   periCx.sbSourceNode.foreach { sb2tl =>
     val sbaXbar = LazyModule(new TLXbar(TLArbiter.roundRobin))
