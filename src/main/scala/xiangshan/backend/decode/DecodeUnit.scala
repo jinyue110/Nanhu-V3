@@ -1095,6 +1095,10 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
 
   val illegalVec = (isVector || isVtype) && !extEn.vec
 
+  // fdi decode check
+  val fdiEn = io.csrCtrl.fdi_enable
+  val illegalFDI = FDICALL_JR === ctrl_flow.instr && !fdiEn
+
   // read src1~3 location
   cs.lsrc(0) := ctrl_flow.instr(RS1_MSB, RS1_LSB)
   cs.lsrc(1) := ctrl_flow.instr(RS2_MSB, RS2_LSB)
@@ -1104,7 +1108,7 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
 
   // fill in exception vector
   cf_ctrl.cf.exceptionVec := io.enq.ctrl_flow.exceptionVec
-  cf_ctrl.cf.exceptionVec(illegalInstr) := illegalInst || illegalFp || illegalVec
+  cf_ctrl.cf.exceptionVec(illegalInstr) := illegalInst || illegalFp || illegalVec || illegalFDI 
 
   // fix frflags
   //                           fflags    zero csrrs rd    csr

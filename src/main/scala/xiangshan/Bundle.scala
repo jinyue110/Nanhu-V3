@@ -533,6 +533,8 @@ class CustomCSRCtrlIO(implicit p: Parameters) extends XSBundle {
   }
   // SPMP
   val spmp_enable = Output(Bool())
+  // FDI
+  val fdi_enable  = Output(Bool())
 }
 
 class DistributedCSRIO(implicit p: Parameters) extends XSBundle {
