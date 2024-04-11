@@ -113,8 +113,14 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
   fdi.io.distribute_csr  := fdicallDistributedCSR.delay()
 
   val fdiJumpChecker = Module(new FDIJumpChecker)
-  fdiJumpChecker.io.req.valid := io.in.valid && (JumpOpType.jumpOpIsJal(func) || JumpOpType.jumpOpIsJalr(func))  //only check jump (jal/jalr) instruction
-  fdiJumpChecker.io.connect(pc, redirectOut.cfiUpdate.target, isUntrusted, FDIOp.jump, fdi.io.control_flow)
+  val fdiJumpCheckerValid = io.in.valid && (JumpOpType.jumpOpIsJal(func) || JumpOpType.jumpOpIsJalr(func)) //only check jump (jal/jalr) instruction
+  val fdiJumpCheckerValidReg = RegNext(fdiJumpCheckerValid, false.B) 
+  val fdiJumpCheckerPCReg   = RegEnable(pc, fdiJumpCheckerValid)
+  val fdiJumpCheckerTargetReg = RegEnable(redirectOut.cfiUpdate.target, fdiJumpCheckerValid)
+  val fdiJumpCheckerIsUntrustedReg = RegEnable(isUntrusted, fdiJumpCheckerValid)
+
+  fdiJumpChecker.io.req.valid := fdiJumpCheckerValidReg  
+  fdiJumpChecker.io.connect(fdiJumpCheckerPCReg, fdiJumpCheckerTargetReg, fdiJumpCheckerIsUntrustedReg, FDIOp.jump, fdi.io.control_flow)
 
   io.out.bits.uop.cf.exceptionVec(illegalInstr) := valid && JumpOpType.jumpOpIsFDIcall(func) && isUntrusted
   io.out.bits.uop.cf.exceptionVec(fdiUJumpFault) := fdiJumpChecker.io.resp.fdi_fault === FDICheckFault.UJumpFDIFault
